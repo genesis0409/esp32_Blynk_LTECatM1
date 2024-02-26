@@ -35,7 +35,7 @@ public:
     {
     }
 
-    /*
+    ///*
     void connectWiFi(const char *ssid, const char *pass)
     {
         BLYNK_LOG2(BLYNK_F("Connecting to "), ssid);
@@ -58,7 +58,7 @@ public:
         (void)myip; // Eliminate warnings about unused myip
         BLYNK_LOG_IP("IP: ", myip);
     }
-    */
+    //*/
 
     void config(const char *auth,
                 const char *domain = BLYNK_DEFAULT_DOMAIN,
@@ -78,10 +78,10 @@ public:
 
     // Use LTE Cat M1, no Wifi
     void begin(const char *auth,
-               const char *domain = BLYNK_DEFAULT_DOMAIN,
+               IPAddress ip,
                uint16_t port = BLYNK_DEFAULT_PORT)
     {
-        config(auth, domain, port);
+        config(auth, ip, port);
         while (this->connect() != true)
         {
         }
@@ -93,7 +93,7 @@ public:
                const char *domain = BLYNK_DEFAULT_DOMAIN,
                uint16_t port = BLYNK_DEFAULT_PORT)
     {
-        // connectWiFi(ssid, pass);
+        connectWiFi(ssid, pass);
         config(auth, domain, port);
         while (this->connect() != true)
         {
@@ -106,7 +106,7 @@ public:
                IPAddress ip,
                uint16_t port = BLYNK_DEFAULT_PORT)
     {
-        // connectWiFi(ssid, pass);
+        connectWiFi(ssid, pass);
         config(auth, ip, port);
         while (this->connect() != true)
         {

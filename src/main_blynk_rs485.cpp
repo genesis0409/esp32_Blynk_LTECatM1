@@ -1,3 +1,10 @@
+/*
+ * Before Use, Select Option:
+ * 1. TYPE1SC: EXT_ANT_ON
+ * 2. Blynk: USE_WIFI
+ * 3. RS485: EC_SENSING_MODE
+ */
+
 /* Arduino setting **********************************/
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -22,9 +29,9 @@
 
 String APN = "simplio.apn";
 
-U8X8_SSD1306_128X64_NONAME_HW_I2C u8x8(/* reset=*/U8X8_PIN_NONE);
 TYPE1SC TYPE1SC(M1Serial, DebugSerial, PWR_PIN, RST_PIN, WAKEUP_PIN);
 
+U8X8_SSD1306_128X64_NONAME_HW_I2C u8x8(/* reset=*/U8X8_PIN_NONE);
 #define U8LOG_WIDTH 16
 #define U8LOG_HEIGHT 8
 uint8_t u8log_buffer[U8LOG_WIDTH * U8LOG_HEIGHT];
@@ -37,6 +44,10 @@ U8X8LOG u8x8log;
 void extAntenna();
 
 /* Blynk setting ************************************/
+// Use WIFI? *************************************************
+// #define USE_WIFI
+// ***********************************************************
+
 #include "config_Blynk.h"
 
 // #include <BlynkSimpleEsp32.h> // wifi header...
@@ -66,9 +77,9 @@ BlynkTimer timer; // 함수 주기적 실행 위한 타이머
 #define SLAVE_ID 1
 #define START_ADDRESS 0
 #define QUANTITY 2
-#define SCAN_RATE 30000
+#define SCAN_RATE 10000
 
-// **************** Soil Moisture + Temp + EC ****************
+// Soil Moisture + Temp + EC *********************************
 #define EC_SENSING_MODE // To disable, change to annotation.
 // ***********************************************************
 
@@ -145,30 +156,6 @@ void setup()
         delay(2000);
     }
 
-    /* Enter a DNS address to get an IP address */
-    char IPAddr[32];
-
-    while (1)
-    {
-
-        if (TYPE1SC.getIPAddr("echo.mbedcloudtesting.com", IPAddr,
-                              sizeof(IPAddr)) == 0)
-        {
-            DebugSerial.print("IP Address : ");
-            DebugSerial.println(IPAddr);
-            u8x8log.print("IP Address : ");
-            u8x8log.print(IPAddr);
-            u8x8log.print("\n");
-            break;
-        }
-        else
-        {
-            DebugSerial.println("IP Address Error!!!");
-            u8x8log.print("IP Address Error!!!\n");
-        }
-        delay(2000);
-    }
-
     /* Get Time (GMT, (+36/4) ==> Korea +9hour) */
     char szTime[32];
     if (TYPE1SC.getCCLK(szTime, sizeof(szTime)) == 0)
@@ -184,22 +171,121 @@ void setup()
     DebugSerial.println("TYPE1SC Module Ready!!!");
     u8x8log.print("TYPE1SC Module Ready!!!\n");
 
+    /* Enter a DNS address to get an IP address */
+    char IPAddr[32];
+
+    while (1)
+    {
+
+        if (TYPE1SC.getIPAddr(BLYNK_DEFAULT_DOMAIN, IPAddr, sizeof(IPAddr)) == 0)
+        {
+            DebugSerial.print("Blynk IP Address : ");
+            DebugSerial.println(IPAddr);
+            u8x8log.print("Blynk IP Address : ");
+            u8x8log.print(IPAddr);
+            u8x8log.print("\n");
+            break;
+        }
+        else
+        {
+            DebugSerial.println("Blynk IP Address Error!!!");
+            u8x8log.print("Blynk IP Address Error!!!\n");
+        }
+        delay(2000);
+    }
+
+    // Use TCP Socket
     /********************************/
+
+    int _PORT = BLYNK_DEFAULT_PORT;
+    char sckInfo[128];
+    char recvBuffer[700];
+    int recvSize;
+
+    /* 1 :TCP Socket Create ( 0:UDP, 1:TCP ) */
+    if (TYPE1SC.socketCreate(1, IPAddr, _PORT) == 0)
+    {
+        DebugSerial.println("TCP Socket Create!!!");
+        u8x8log.print("TCP Socket Create!!!\n");
+    }
+
+INFO:
+
+    /* 2 :TCP Socket Activation */
+    if (TYPE1SC.socketActivate() == 0)
+    {
+        DebugSerial.println("TCP Socket Activation!!!");
+        u8x8log.print("TCP Socket Activation!!!\n");
+    }
+
+    if (TYPE1SC.socketInfo(sckInfo, sizeof(sckInfo)) == 0)
+    {
+        DebugSerial.print("Socket Info : ");
+        DebugSerial.println(sckInfo);
+        u8x8log.print("Socket Info : ");
+        u8x8log.print(sckInfo);
+        u8x8log.print("\n");
+
+        if (strcmp(sckInfo, "ACTIVATED"))
+        {
+            delay(3000);
+            goto INFO;
+        }
+    }
+
+    // online forever TCP Socket; auto close if disconnect
+    // /* 5 :TCP Socket DeActivation */
+    // if (TYPE1SC.socketDeActivate() == 0)
+    // {
+    //     DebugSerial.println("TCP Socket DeActivation!!!");
+    //     u8x8log.print("TCP Socket DeActivation!!!\n");
+    // }
+
+    // if (TYPE1SC.socketInfo(sckInfo, sizeof(sckInfo)) == 0)
+    // {
+    //     DebugSerial.print("Socket Info : ");
+    //     DebugSerial.println(sckInfo);
+    //     u8x8log.print("Socket Info : ");
+    //     u8x8log.print(sckInfo);
+    //     u8x8log.print("\n");
+    // }
+
+    // /* 6 :TCP Socket DeActivation */
+    // if (TYPE1SC.socketClose() == 0)
+    // {
+    //     DebugSerial.println("TCP Socket Close!!!");
+    //     u8x8log.print("TCP Socket Close!!!\n");
+    // }
+
+    // /* 7 :Detach Network */
+    // if (TYPE1SC.setCFUN(0) == 0)
+    // {
+    //     DebugSerial.println("detach Network!!!");
+    //     u8x8log.print("detach Network!!!\n");
+    // }
+    // delay(10000); // Detach Setup Time : 10sec
 
     // Begin Blynk
-    Blynk.begin(auth);
+    /********************************/
+#if defined(USE_WIFI)
+    Blynk.begin(auth, "dinfo", "daon7521");
+#endif
+
+    // WIFI 없이는 쉽지않네
+    // IPAddress blynkIP;
+    // if (blynkIP.fromString(IPAddr))
+    // {
+    //     Serial.print("IP Type convert Success, IP Address: ");
+    //     Serial.println(blynkIP);
+    // }
+    // else
+    // {
+    //     Serial.println("IP Type convert Failed");
+    // }
+
+    // Blynk.begin(auth, blynkIP, BLYNK_DEFAULT_PORT);
 
     /********************************/
-
-    /* 7 :Detach Network */
-    /*
-    if (TYPE1SC.setCFUN(0) == 0)
-    {
-        DebugSerial.println("detach Network!!!");
-        u8x8log.print("detach Network!!!\n");
-    }
-    delay(10000); // Detach Setup Time : 10sec
-    */
 
     // RS485 Setup
     modbus.setTimeout(12000);
@@ -208,13 +294,43 @@ void setup()
                                                   // rxPin: 직렬 데이터 수신 핀; txPin: 직렬  데이터 전송 핀 (uint8_t)
 
     // 함수 주기 실행
+#if defined(USE_WIFI)
     timer.setInterval(SCAN_RATE, getSensorData);
+#endif
 }
 
 void loop()
 {
+#if defined(USE_WIFI)
     Blynk.run();
     timer.run();
+#else
+    currentMillis = millis();
+    if (currentMillis - previousMillis >= SCAN_RATE)
+    {
+        previousMillis = currentMillis;
+
+        getSensorData();
+
+        /* 3 :TCP Socket Send Data */
+        String data = "https//blynk.cloud/external/api/update?token=" BLYNK_AUTH_TOKEN "&";
+        data += "V0=" + String(t) + "&" + "V1=" + String(soil_m) + "&" + "V2=" + String(ec); //" GET / update ";
+
+        if (TYPE1SC.socketSend(data.c_str()) == 0)
+        {
+            DebugSerial.print("[HTTP Send] >> ");
+            DebugSerial.println(data);
+            u8x8log.print("[HTTP Send] >> ");
+            u8x8log.print(data);
+            u8x8log.print("\n");
+        }
+        else
+        {
+            DebugSerial.println("HTTP Send Fail!!!");
+            u8x8log.print("HTTP Send Fail!!!\n");
+        }
+    }
+#endif
 }
 
 void extAntenna()
@@ -230,26 +346,41 @@ void extAntenna()
 void getSensorData()
 {
 #if defined(EC_SENSING_MODE)
-    modbus.readHoldingRegisters(1, 0, holdingRegisters, 3);
-    t = holdingRegisters[0] / 10.0;
-    soil_m = holdingRegisters[1] / 10.0;
-    ec = holdingRegisters[2] / 1000.0;
-    Serial.printf("RK520-02 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [EC]: %.2f,\n", messageID, t, soil_m, ec);
+    if (modbus.readHoldingRegisters(1, 0, holdingRegisters, 3))
+    {
+        t = holdingRegisters[0] / 10.0;
+        soil_m = holdingRegisters[1] / 10.0;
+        ec = holdingRegisters[2] / 1000.0;
+        Serial.printf("RK520-02 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [EC]: %.2f\n", messageID, t, soil_m, ec);
 
-    // Sent to Blynk
-    Blynk.virtualWrite(V0, t);
-    Blynk.virtualWrite(V1, soil_m);
-    Blynk.virtualWrite(V2, ec);
+#if defined(USE_WIFI)
+        // Sent to Blynk
+        Blynk.virtualWrite(V0, t);
+        Blynk.virtualWrite(V1, soil_m);
+        Blynk.virtualWrite(V2, ec);
+#endif
+    }
+    else
+    {
+        Serial.println("Cannot Read Holding Resisters...");
+    }
 
 #else
-    modbus.readHoldingRegisters(1, 0, holdingRegisters, 2);
-    t = holdingRegisters[0] / 10.0;
-    h = holdingRegisters[1] / 10.0;
-    Serial.printf("TZ-THT02 [messageID]: %d | [TEMP]: %.1f, [HUMI]: %.1f\n", messageID, t, h);
+    if (modbus.readHoldingRegisters(1, 0, holdingRegisters, 2))
+    {
+        t = holdingRegisters[0] / 10.0;
+        h = holdingRegisters[1] / 10.0;
+        Serial.printf("TZ-THT02 [messageID]: %d | [TEMP]: %.1f, [HUMI]: %.1f\n", messageID, t, h);
 
-    // Sent to Blynk
-    Blynk.virtualWrite(V0, t);
-    Blynk.virtualWrite(V1, h);
+        // Sent to Blynk
+        Blynk.virtualWrite(V0, t);
+        Blynk.virtualWrite(V1, h);
+    }
+    else
+    {
+        Serial.println("Cannot Read Holding Resisters...");
+    }
+
 #endif
 
     messageID++;
