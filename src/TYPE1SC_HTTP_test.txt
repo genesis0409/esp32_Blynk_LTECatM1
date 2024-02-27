@@ -10,15 +10,6 @@
 #define WAKEUP_PIN 19
 #define EXT_ANT 4
 
-#define DHTPIN 0
-#include "DHT.h" /* https://github.com/markruys/arduino-DHT */
-// Uncomment whatever type you're using!
-// #define DHTTYPE DHT11   // DHT 11
-#define DHTTYPE DHT22 // DHT 22  (AM2302), AM2321
-// #define DHTTYPE DHT21   // DHT 21 (AM2301)
-
-DHT dht(DHTPIN, DHTTYPE);
-
 U8X8_SSD1306_128X64_NONAME_HW_I2C u8x8(/* reset=*/U8X8_PIN_NONE);
 TYPE1SC TYPE1SC(M1Serial, DebugSerial, PWR_PIN, RST_PIN, WAKEUP_PIN);
 
@@ -30,7 +21,7 @@ U8X8LOG u8x8log;
 /* EXT_ANT_ON 0 : Use an internal antenna.
  * EXT_ANT_ON 1 : Use an external antenna.
  */
-#define EXT_ANT_ON 0
+#define EXT_ANT_ON 1
 
 void extAntenna()
 {
@@ -60,8 +51,6 @@ void setup()
 
   extAntenna();
 
-  dht.begin();
-
   /* TYPE1SC Module Initialization */
   if (TYPE1SC.init())
   {
@@ -85,8 +74,7 @@ void setup()
 
   while (1)
   {
-
-    if (TYPE1SC.getIPAddr("api.thingspeak.com", IPAddr, sizeof(IPAddr)) == 0)
+    if (TYPE1SC.getIPAddr("sgp1.blynk.cloud", IPAddr, sizeof(IPAddr)) == 0)
     {
       DebugSerial.print("IP Address : ");
       DebugSerial.println(IPAddr);
@@ -108,7 +96,7 @@ void setup()
   char recvBuffer[700];
   int recvSize;
 
-  String WApiKey = "****************"; // Thing Speak Write API Key 16Character
+  String WApiKey = "f5XIvNr_EdZSWJidGU7163s3LOgIwvnz"; // Thing Speak Write API Key 16Character
   float temp = 0.0;
   float humi = 0.0;
   String fieldTemp = "field1"; // Air temperature
@@ -118,8 +106,8 @@ void setup()
   while (1)
   {
     /* Get DHT22 Sensor */
-    temp = dht.readTemperature();
-    humi = dht.readHumidity();
+    temp = 50;
+    humi = 50;
     if (String(temp) != "nan" && String(humi) != "nan")
       break;
     else
@@ -162,12 +150,16 @@ INFO:
   }
 
   /* 3 :TCP Socket Send Data */
-  String data = "GET /update";
-  data += "?api_key=" + WApiKey + "&" + fieldTemp + "=" + String(temp) + "&" +
-          fieldHumi + "=" + String(humi);
+  String data = "GET /external/api/batch/update";
+  data += "?token=" + WApiKey + "&";
+  data += "v0=" + String(temp) + "&" + "v1=" + String(humi);
+
   data += " HTTP/1.1\r\n";
-  data += "Host: api.thingspeak.com\r\n";
+  data += "Host: sgp1.blynk.cloud\r\n";
   data += "Connection: close\r\n\r\n";
+
+  // String data = "https//sgp1.blynk.cloud/external/api/batch/update?token=" + WApiKey;
+  // data += "&v0=" + String(temp) + "&v1=" + String(humi);
 
   if (TYPE1SC.socketSend(data.c_str()) == 0)
   {
