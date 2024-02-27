@@ -115,16 +115,16 @@ uint16_t holdingRegisters[2] = {0xFF, 0xFF};
 void setup()
 {
     /* CATM1 Modem PowerUp sequence */
-    // pinMode(PWR_PIN, OUTPUT);
-    // pinMode(RST_PIN, OUTPUT);
-    // pinMode(WAKEUP_PIN, OUTPUT);
+    pinMode(PWR_PIN, OUTPUT);
+    pinMode(RST_PIN, OUTPUT);
+    pinMode(WAKEUP_PIN, OUTPUT);
 
-    // digitalWrite(PWR_PIN, HIGH);
-    // digitalWrite(WAKEUP_PIN, HIGH);
-    // digitalWrite(RST_PIN, LOW);
-    // delay(100);
-    // digitalWrite(RST_PIN, HIGH);
-    // delay(2000);
+    digitalWrite(PWR_PIN, HIGH);
+    digitalWrite(WAKEUP_PIN, HIGH);
+    digitalWrite(RST_PIN, LOW);
+    delay(100);
+    digitalWrite(RST_PIN, HIGH);
+    delay(2000);
 
     /********************************/
 #if defined(USE_LCD)
