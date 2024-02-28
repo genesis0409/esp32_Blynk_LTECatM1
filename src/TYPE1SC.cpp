@@ -9,7 +9,8 @@
 #include "TYPE1SC.h"
 #include "Arduino.h"
 
-extern "C" {
+extern "C"
+{
 #include "stdlib.h"
 #include "string.h"
 #ifndef __AVR__
@@ -20,54 +21,59 @@ extern "C" {
 #define SWIR_TRACE(...) TYPE1SC_trace(__VA_ARGS__);
 #define TRACE_BUFFER_SIZE 256
 #define BG_LINE 30 // Limit 30 Line
-//#define __TYPE_1SC_DEBUG		//Debug mode
+// #define __TYPE_1SC_DEBUG		//Debug mode
 
 /* Constructor - Arduino Nano 33 IoT, Nano 33 Ble, Nano RP2040, Nano every */
 TYPE1SC::TYPE1SC(Stream &serial, Stream &debug)
-	: _serial(serial), _debug(debug) {
-		_timeOut = 2000; /* default Timeout */
-		_serial.setTimeout(
-				(_timeOut + 500)); /* +500ms, Serial TX/RX Timeout default 2000 */
+	: _serial(serial), _debug(debug)
+{
+	_timeOut = 2000; /* default Timeout */
+	_serial.setTimeout(
+		(_timeOut + 500)); /* +500ms, Serial TX/RX Timeout default 2000 */
 
-		/* Modem Hard Reset Sequence */
-		_reset_pin = 2;
+	/* Modem Hard Reset Sequence */
+	_reset_pin = 2;
 
-		pinMode(_reset_pin, OUTPUT);
-		digitalWrite(_reset_pin, HIGH);
-	}
+	pinMode(_reset_pin, OUTPUT);
+	digitalWrite(_reset_pin, HIGH);
+}
 
 /* Constructor - ESP32, Raspberry Pi PICO */
 TYPE1SC::TYPE1SC(Stream &serial, Stream &debug, uint8_t pwr_pin,
-		uint8_t reset_pin, uint8_t wakeup_pin)
+				 uint8_t reset_pin, uint8_t wakeup_pin)
 	: _serial(serial), _debug(debug), _pwr_pin(pwr_pin), _reset_pin(reset_pin),
-	_wakeup_pin(wakeup_pin) {
-		_timeOut = 2000; /* default Timeout */
-		_serial.setTimeout(
-				(_timeOut + 500)); /* +500ms, Serial TX/RX Timeout default 2000 */
-		pinMode(_pwr_pin, OUTPUT);
-		pinMode(_reset_pin, OUTPUT);
-		pinMode(_wakeup_pin, OUTPUT);
+	  _wakeup_pin(wakeup_pin)
+{
+	_timeOut = 2000; /* default Timeout */
+	_serial.setTimeout(
+		(_timeOut + 500)); /* +500ms, Serial TX/RX Timeout default 2000 */
+	pinMode(_pwr_pin, OUTPUT);
+	pinMode(_reset_pin, OUTPUT);
+	pinMode(_wakeup_pin, OUTPUT);
 
-		digitalWrite(_pwr_pin, HIGH);
-		digitalWrite(_wakeup_pin, HIGH);
+	digitalWrite(_pwr_pin, HIGH);
+	digitalWrite(_wakeup_pin, HIGH);
 
-		/* Hard Reset Sequence */
-		digitalWrite(_reset_pin, LOW);
-		delay(100);
-		digitalWrite(_reset_pin, HIGH);
-	}
+	/* Hard Reset Sequence */
+	digitalWrite(_reset_pin, LOW);
+	delay(100);
+	digitalWrite(_reset_pin, HIGH);
+}
 
-void TYPE1SC::pwrON() {
+void TYPE1SC::pwrON()
+{
 	digitalWrite(_pwr_pin, HIGH);
 	delay(2000);
 }
 
-void TYPE1SC::pwrOFF() {
+void TYPE1SC::pwrOFF()
+{
 	digitalWrite(_pwr_pin, LOW);
 	delay(3000);
 }
 
-void TYPE1SC::extAntON(uint8_t extAnt_pin) {
+void TYPE1SC::extAntON(uint8_t extAnt_pin)
+{
 	_extAnt_pin = extAnt_pin;
 
 	pinMode(_extAnt_pin, OUTPUT);
@@ -75,7 +81,8 @@ void TYPE1SC::extAntON(uint8_t extAnt_pin) {
 	delay(1000);
 }
 
-int TYPE1SC::init() {
+int TYPE1SC::init()
+{
 	char szCmd[128];
 	char resBuffer[16];
 	int cnt = 0;
@@ -87,16 +94,18 @@ int TYPE1SC::init() {
 	strcpy(szCmd, "AT");
 
 CHK:
-	do {
+	do
+	{
 
 		ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 3000);
 
 		if (ret == 0)
 			break;
 
-	} while ( cnt++ < 20 );
+	} while (cnt++ < 20);
 
-	if(ret){
+	if (ret)
+	{
 		/* Modem H/W Reset */
 		digitalWrite(_reset_pin, LOW);
 		delay(100);
@@ -106,7 +115,7 @@ CHK:
 		goto CHK;
 	}
 
-	SWIR_TRACE(F("AT -- OK Count : %d\n"),cnt);
+	SWIR_TRACE(F("AT -- OK Count : %d\n"), cnt);
 	strcpy(szCmd, "ATE0"); // Echo Off
 	ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 3000);
 
@@ -119,7 +128,8 @@ CHK:
 	return ret;
 }
 
-int TYPE1SC::getCCLK(char *szCCLK, int nBufferSize) {
+int TYPE1SC::getCCLK(char *szCCLK, int nBufferSize)
+{
 	char szCmd[16];
 	int ret;
 
@@ -133,7 +143,8 @@ int TYPE1SC::getCCLK(char *szCCLK, int nBufferSize) {
 	return ret;
 }
 
-int TYPE1SC::getCGMR(char *szCGMR, int nBufferSize) {
+int TYPE1SC::getCGMR(char *szCGMR, int nBufferSize)
+{
 	char szCmd[16];
 	char *aLine[BG_LINE]; // read up to 20 lines
 
@@ -145,7 +156,8 @@ int TYPE1SC::getCGMR(char *szCGMR, int nBufferSize) {
 	char *sLine;
 	memset(szCGMR, 0, nBufferSize);
 
-	for (int i = 0; i < nNbLine; i++) {
+	for (int i = 0; i < nNbLine; i++)
+	{
 		sLine = aLine[i];
 
 		SWIR_TRACE(F("getCGMR, line[%d]: %s\n"), i, sLine);
@@ -167,12 +179,15 @@ int TYPE1SC::getCGMR(char *szCGMR, int nBufferSize) {
 		}
 
 		int nLen = strlen(sLine);
-		if (nLen < 15) {
+		if (nLen < 15)
+		{
 			free(aLine[i]);
 			continue;
 		}
-		for (int k = 0; k < nLen; k++) {
-			if (sLine[k] < '-' || sLine[k] > 'z') {
+		for (int k = 0; k < nLen; k++)
+		{
+			if (sLine[k] < '-' || sLine[k] > 'z')
+			{
 				continue;
 			}
 		}
@@ -184,7 +199,8 @@ int TYPE1SC::getCGMR(char *szCGMR, int nBufferSize) {
 	return (strlen(szCGMR) > 0 ? 0 : 1);
 }
 
-int TYPE1SC::getCFUN(int *value) {
+int TYPE1SC::getCFUN(int *value)
+{
 	char szCmd[16];
 	char resBuffer[16];
 	int ret, _value;
@@ -201,7 +217,8 @@ int TYPE1SC::getCFUN(int *value) {
 	return ret;
 }
 
-int TYPE1SC::setCFUN(int value) {
+int TYPE1SC::setCFUN(int value)
+{
 	char szCmd[16];
 	char resBuffer[16];
 	int ret;
@@ -215,7 +232,8 @@ int TYPE1SC::setCFUN(int value) {
 	return ret;
 }
 
-int TYPE1SC::setSocket_EV(int value) {
+int TYPE1SC::setSocket_EV(int value)
+{
 	char szCmd[128];
 	char resBuffer[16];
 	int ret;
@@ -229,7 +247,8 @@ int TYPE1SC::setSocket_EV(int value) {
 	return ret;
 }
 
-int TYPE1SC::setHTTP_EV(int value) {
+int TYPE1SC::setHTTP_EV(int value)
+{
 	char szCmd[128];
 	char resBuffer[16];
 	int ret;
@@ -243,18 +262,22 @@ int TYPE1SC::setHTTP_EV(int value) {
 	return ret;
 }
 
-int TYPE1SC::setHTTP_NODES(int profile_id, char *http_addr) {
+int TYPE1SC::setHTTP_NODES(int profile_id, char *http_addr)
+{
 	char szCmd[1024];
 	char resBuffer[16];
 	char httpADDR[512];
-	int  pid;
-	int  ret;
+	int pid;
+	int ret;
 
 	TYPE1SC_serial_clearbuf();
 
-	if(profile_id > 0 && profile_id < 6){
+	if (profile_id > 0 && profile_id < 6)
+	{
 		pid = profile_id;
-	}else{
+	}
+	else
+	{
 		SWIR_TRACE(F("setHTTP_NODES profile_id error PID: %d \n"), profile_id);
 		ret = 1;
 		return ret;
@@ -270,26 +293,33 @@ int TYPE1SC::setHTTP_NODES(int profile_id, char *http_addr) {
 	return ret;
 }
 
-int TYPE1SC::setHTTP_TLS(int profile_id, int nProfile) {
+int TYPE1SC::setHTTP_TLS(int profile_id, int nProfile)
+{
 	char szCmd[512];
 	char resBuffer[16];
-	int  pid;
-	int  nid;
-	int  ret;
+	int pid;
+	int nid;
+	int ret;
 
 	TYPE1SC_serial_clearbuf();
 
-	if(profile_id > 0 && profile_id < 6){
+	if (profile_id > 0 && profile_id < 6)
+	{
 		pid = profile_id;
-	}else{
+	}
+	else
+	{
 		SWIR_TRACE(F("setHTTP_NODES profile_id error PID: %d \n"), profile_id);
 		ret = 1;
 		return ret;
 	}
 
-	if(nProfile > 0 && nProfile < 256){
+	if (nProfile > 0 && nProfile < 256)
+	{
 		nid = nProfile;
-	}else{
+	}
+	else
+	{
 		SWIR_TRACE(F("setHTTP_TLS nProfile error NID: %d \n"), nProfile);
 		ret = 1;
 		return ret;
@@ -302,20 +332,24 @@ int TYPE1SC::setHTTP_TLS(int profile_id, int nProfile) {
 	return ret;
 }
 
-int TYPE1SC::HTTP_GET(int profile_id, char *http_get_addr, int *readSize) {
+int TYPE1SC::HTTP_GET(int profile_id, char *http_get_addr, int *readSize)
+{
 	char szCmd[1024];
 	char resBuffer[128];
 	char httpADDR[512];
-	int  pid;
-	int  rSize1, rSize2;
+	int pid;
+	int rSize1, rSize2;
 
 	TYPE1SC_serial_clearbuf();
 
 	*readSize = 0;
 
-	if(profile_id > 0 && profile_id < 6){
+	if (profile_id > 0 && profile_id < 6)
+	{
 		pid = profile_id;
-	}else{
+	}
+	else
+	{
 		SWIR_TRACE(F("setHTTP_NODES profile_id error PID: %d \n"), profile_id);
 		return 1;
 	}
@@ -326,24 +360,28 @@ int TYPE1SC::HTTP_GET(int profile_id, char *http_get_addr, int *readSize) {
 	sprintf(szCmd, "AT%%HTTPCMD=\"GET\",%d,\"%s\"", pid, httpADDR);
 
 	if (0 == sendATcmdOmitOK(szCmd, resBuffer, sizeof(resBuffer), "\"GETRCV\",",
-				20000)) {
+							 20000))
+	{
 		char *pszState = NULL;
 		char *pszState2 = NULL;
 
 		pszState = strstr(resBuffer, ",");
-		if (pszState != NULL) {
+		if (pszState != NULL)
+		{
 			pszState++;
 			pszState2 = pszState;
 			pszState = strstr(pszState2, ",");
-			if (pszState != NULL) {
+			if (pszState != NULL)
+			{
 				pszState++;
 				pszState2 = pszState;
 				rSize1 = atoi(pszState);
 				pszState = strstr(pszState2, ",");
-				if (pszState != NULL) {
+				if (pszState != NULL)
+				{
 					pszState++;
 					rSize2 = atoi(pszState);
-					SWIR_TRACE(F("HTTP Read Size %d, %d \n"),rSize1, rSize2);
+					SWIR_TRACE(F("HTTP Read Size %d, %d \n"), rSize1, rSize2);
 					*readSize = rSize1 + rSize2;
 
 					return 0;
@@ -356,20 +394,24 @@ int TYPE1SC::HTTP_GET(int profile_id, char *http_get_addr, int *readSize) {
 	return 1;
 }
 
-int TYPE1SC::HTTP_GET(int profile_id, char *http_get_addr, int *readSize, bool secure){
+int TYPE1SC::HTTP_GET(int profile_id, char *http_get_addr, int *readSize, bool secure)
+{
 	char szCmd[1024];
 	char resBuffer[128];
 	char httpADDR[512];
-	int  pid;
-	int  rSize1;
+	int pid;
+	int rSize1;
 
 	TYPE1SC_serial_clearbuf();
 
 	*readSize = 0;
 
-	if(profile_id > 0 && profile_id < 6 && secure == false){
+	if (profile_id > 0 && profile_id < 6 && secure == false)
+	{
 		pid = profile_id;
-	}else{
+	}
+	else
+	{
 		SWIR_TRACE(F("setHTTP_NODES profile_id error PID: %d \n"), profile_id);
 		return 1;
 	}
@@ -380,16 +422,19 @@ int TYPE1SC::HTTP_GET(int profile_id, char *http_get_addr, int *readSize, bool s
 	sprintf(szCmd, "AT%%HTTPCMD=\"GET\",%d,\"%s\"", pid, httpADDR);
 
 	if (0 == sendATcmdOmitOK(szCmd, resBuffer, sizeof(resBuffer), "\"GETRCV\",",
-				20000)) {
+							 20000))
+	{
 		char *pszState = NULL;
 		char *pszState2 = NULL;
 
 		pszState = strstr(resBuffer, ",");
-		if (pszState != NULL) {
+		if (pszState != NULL)
+		{
 			pszState++;
 			pszState2 = pszState;
 			pszState = strstr(pszState2, ",");
-			if (pszState != NULL) {
+			if (pszState != NULL)
+			{
 				pszState++;
 				pszState2 = pszState;
 				rSize1 = atoi(pszState);
@@ -402,24 +447,26 @@ int TYPE1SC::HTTP_GET(int profile_id, char *http_get_addr, int *readSize, bool s
 
 	SWIR_TRACE(F("HTTP GET Response Error..."));
 	return 1;
-
 }
 
-int TYPE1SC::HTTP_READ(int profile_id, int readSize, char* httpData, int nBufferSize) {
+int TYPE1SC::HTTP_READ(int profile_id, int readSize, char *httpData, int nBufferSize)
+{
 	char szCmd[64];
 	char resBuffer[1024];
-	int  pid, rSize1, rSize2, ret;
+	int pid, rSize1, rSize2, ret;
 
 	TYPE1SC_serial_clearbuf();
 
-	if(profile_id > 0 && profile_id < 6){
+	if (profile_id > 0 && profile_id < 6)
+	{
 		pid = profile_id;
-	}else{
+	}
+	else
+	{
 		SWIR_TRACE(F("HTTP_READ profile_id error PID: %d \n"), profile_id);
 		return 1;
 	}
 	memset(httpData, 0x0, nBufferSize);
-
 
 	sprintf(szCmd, "AT%%HTTPREAD=%d,%d", pid, readSize);
 	_serial.println(szCmd);
@@ -489,14 +536,15 @@ int TYPE1SC::HTTP_READ(int profile_id, int readSize, char* httpData, int nBuffer
 			TYPE1SC_serial_clearbuf();
 			SWIR_TRACE(F("httpReadSize End: [%d]\n"),httpReadSize);
 #endif
-			//		  return 0;
-			//	  }
-			//  }
-			//  return 1;
-			return ret;
+	//		  return 0;
+	//	  }
+	//  }
+	//  return 1;
+	return ret;
 }
 
-int TYPE1SC::setMQTT_EV(int value) {
+int TYPE1SC::setMQTT_EV(int value)
+{
 	char szCmd[128];
 	char resBuffer[16];
 	int ret;
@@ -510,7 +558,8 @@ int TYPE1SC::setMQTT_EV(int value) {
 	return ret;
 }
 
-int TYPE1SC::setMQTT_NODES(char *client_id, char *mqtt_addr) {
+int TYPE1SC::setMQTT_NODES(char *client_id, char *mqtt_addr)
+{
 	char szCmd[512];
 	char resBuffer[16];
 	char clientID[128];
@@ -532,7 +581,8 @@ int TYPE1SC::setMQTT_NODES(char *client_id, char *mqtt_addr) {
 	return ret;
 }
 
-int TYPE1SC::setMQTT_NODES(char *client_id, char *mqtt_addr, char *mqtt_user, char *mqtt_pass) {
+int TYPE1SC::setMQTT_NODES(char *client_id, char *mqtt_addr, char *mqtt_user, char *mqtt_pass)
+{
 	char szCmd[512];
 	char resBuffer[16];
 	char clientID[128];
@@ -549,7 +599,6 @@ int TYPE1SC::setMQTT_NODES(char *client_id, char *mqtt_addr, char *mqtt_user, ch
 	memset(mqttADDR, 0x0, sizeof(mqttADDR));
 	strcpy(mqttADDR, mqtt_addr);
 
-
 	memset(clientName, 0x0, sizeof(clientName));
 	strcpy(clientName, mqtt_user);
 	memset(clientPass, 0x0, sizeof(clientPass));
@@ -563,7 +612,8 @@ int TYPE1SC::setMQTT_NODES(char *client_id, char *mqtt_addr, char *mqtt_user, ch
 	return ret;
 }
 
-int TYPE1SC::setMQTT_NODES(char *client_id, char *mqtt_addr, char *mqtt_user) {
+int TYPE1SC::setMQTT_NODES(char *client_id, char *mqtt_addr, char *mqtt_user)
+{
 	char szCmd[512];
 	char resBuffer[16];
 	char clientID[128];
@@ -589,7 +639,8 @@ int TYPE1SC::setMQTT_NODES(char *client_id, char *mqtt_addr, char *mqtt_user) {
 	return ret;
 }
 
-int TYPE1SC::setMQTT_TIMEOUT(uint32_t value) {
+int TYPE1SC::setMQTT_TIMEOUT(uint32_t value)
+{
 	char szCmd[128];
 	char resBuffer[16];
 	int ret;
@@ -603,7 +654,8 @@ int TYPE1SC::setMQTT_TIMEOUT(uint32_t value) {
 	return ret;
 }
 
-int TYPE1SC::MQTT_Connect(void) {
+int TYPE1SC::MQTT_Connect(void)
+{
 	char szCmd[128];
 	char resBuffer[128];
 
@@ -612,13 +664,16 @@ int TYPE1SC::MQTT_Connect(void) {
 	sprintf(szCmd, "AT%%MQTTCMD=\"CONNECT\",1");
 
 	if (0 == sendATcmdOmitOK(szCmd, resBuffer, sizeof(resBuffer), "\"CONCONF\",1",
-				20000)) {
+							 20000))
+	{
 		char *pszState = NULL;
 
 		pszState = strstr(resBuffer, ",");
-		if (pszState != NULL) {
+		if (pszState != NULL)
+		{
 			pszState++;
-			if (*pszState == '0') {
+			if (*pszState == '0')
+			{
 				SWIR_TRACE(F("connect MQTT Server..."));
 				return 0;
 			}
@@ -629,7 +684,8 @@ int TYPE1SC::MQTT_Connect(void) {
 	return 1;
 }
 
-int TYPE1SC::MQTT_DisConnect(void) {
+int TYPE1SC::MQTT_DisConnect(void)
+{
 	char szCmd[128];
 	char resBuffer[128];
 
@@ -638,13 +694,16 @@ int TYPE1SC::MQTT_DisConnect(void) {
 	sprintf(szCmd, "AT%%MQTTCMD=\"DISCONNECT\",1");
 
 	if (0 == sendATcmdOmitOK(szCmd, resBuffer, sizeof(resBuffer), "\"DISCONF\",1",
-				20000)) {
+							 20000))
+	{
 		char *pszState = NULL;
 
 		pszState = strstr(resBuffer, ",");
-		if (pszState != NULL) {
+		if (pszState != NULL)
+		{
 			pszState++;
-			if (*pszState == '0') {
+			if (*pszState == '0')
+			{
 				SWIR_TRACE(F("disconnect MQTT Server..."));
 				return 0;
 			}
@@ -655,7 +714,8 @@ int TYPE1SC::MQTT_DisConnect(void) {
 	return 1;
 }
 
-int TYPE1SC::MQTT_SUBSCRIBE(int qos, char *topic) {
+int TYPE1SC::MQTT_SUBSCRIBE(int qos, char *topic)
+{
 	char szCmd[128];
 	char resBuffer[128];
 	char clientTopic[128];
@@ -668,18 +728,22 @@ int TYPE1SC::MQTT_SUBSCRIBE(int qos, char *topic) {
 	sprintf(szCmd, "AT%%MQTTCMD=\"SUBSCRIBE\",1,%d,\"%s\"", qos, clientTopic);
 
 	if (0 == sendATcmdOmitOK(szCmd, resBuffer, sizeof(resBuffer), "\"SUBCONF\",1",
-				20000)) {
+							 20000))
+	{
 		char *pszState = NULL;
 		char *pszState2 = NULL;
 
 		pszState = strstr(resBuffer, ",");
-		if (pszState != NULL) {
+		if (pszState != NULL)
+		{
 			pszState++;
 			pszState2 = pszState;
 			pszState = strstr(pszState2, ",");
-			if (pszState != NULL) {
+			if (pszState != NULL)
+			{
 				pszState++;
-				if (*pszState == '0') {
+				if (*pszState == '0')
+				{
 					SWIR_TRACE(F("Subscription success..."));
 					return 0;
 				}
@@ -691,7 +755,8 @@ int TYPE1SC::MQTT_SUBSCRIBE(int qos, char *topic) {
 	return 1;
 }
 
-int TYPE1SC::MQTT_UnSUBSCRIBE(char *topic) {
+int TYPE1SC::MQTT_UnSUBSCRIBE(char *topic)
+{
 	char szCmd[128];
 	char resBuffer[128];
 	char clientTopic[128];
@@ -704,18 +769,22 @@ int TYPE1SC::MQTT_UnSUBSCRIBE(char *topic) {
 	sprintf(szCmd, "AT%%MQTTCMD=\"UNSUBSCRIBE\",1,\"%s\"", clientTopic);
 
 	if (0 == sendATcmdOmitOK(szCmd, resBuffer, sizeof(resBuffer), "\"UNSCONF\",1",
-				5000)) {
+							 5000))
+	{
 		char *pszState = NULL;
 		char *pszState2 = NULL;
 
 		pszState = strstr(resBuffer, ",");
-		if (pszState != NULL) {
+		if (pszState != NULL)
+		{
 			pszState++;
 			pszState2 = pszState;
 			pszState = strstr(pszState2, ",");
-			if (pszState != NULL) {
+			if (pszState != NULL)
+			{
 				pszState++;
-				if (*pszState == '0') {
+				if (*pszState == '0')
+				{
 					SWIR_TRACE(F("Unsubscription success..."));
 					return 0;
 				}
@@ -727,7 +796,8 @@ int TYPE1SC::MQTT_UnSUBSCRIBE(char *topic) {
 	return 1;
 }
 
-int TYPE1SC::MQTT_Publish(int qos, char *topic, int szData, char *Data) {
+int TYPE1SC::MQTT_Publish(int qos, char *topic, int szData, char *Data)
+{
 	char szCmd[256];
 	char resBuffer[256];
 	char clientTopic[128];
@@ -744,22 +814,27 @@ int TYPE1SC::MQTT_Publish(int qos, char *topic, int szData, char *Data) {
 			(szData + 1));
 
 	if (0 == sendATcmdOmitOK(szCmd, resBuffer, sizeof(resBuffer), "\"PUBRCV\",1",
-				clientData, szData, 20000)) {
+							 clientData, szData, 20000))
+	{
 		char *pszState = NULL;
 		char *pszState2 = NULL;
 
 		pszState = strstr(resBuffer, ",");
-		if (pszState != NULL) {
+		if (pszState != NULL)
+		{
 			pszState++;
 			pszState2 = pszState;
 			pszState = strstr(pszState2, ",");
-			if (pszState != NULL) {
+			if (pszState != NULL)
+			{
 				pszState++;
 				pszState2 = pszState;
 				pszState = strstr(pszState2, ",");
-				if (pszState != NULL) {
+				if (pszState != NULL)
+				{
 					pszState++;
-					if (atoi(pszState) == (szData + 1)) {
+					if (atoi(pszState) == (szData + 1))
+					{
 						SWIR_TRACE(F("Publish success..."));
 						TYPE1SC_serial_clearbuf();
 						return 0;
@@ -773,7 +848,8 @@ int TYPE1SC::MQTT_Publish(int qos, char *topic, int szData, char *Data) {
 	return 1;
 }
 
-int TYPE1SC::setAWSIOT_EV(int value) {
+int TYPE1SC::setAWSIOT_EV(int value)
+{
 	char szCmd[128];
 	char resBuffer[16];
 	int ret;
@@ -787,7 +863,8 @@ int TYPE1SC::setAWSIOT_EV(int value) {
 	return ret;
 }
 
-int TYPE1SC::setAWSIOT_CONN(char *client_id, char *aws_addr, int tlsProfileNo) {
+int TYPE1SC::setAWSIOT_CONN(char *client_id, char *aws_addr, int tlsProfileNo)
+{
 	char szCmd[512];
 	char resBuffer[16];
 	char clientID[128];
@@ -810,7 +887,8 @@ int TYPE1SC::setAWSIOT_CONN(char *client_id, char *aws_addr, int tlsProfileNo) {
 	return ret;
 }
 
-int TYPE1SC::setAWSIOT_TIMEOUT(int value) {
+int TYPE1SC::setAWSIOT_TIMEOUT(int value)
+{
 	char szCmd[128];
 	char resBuffer[16];
 	int ret;
@@ -824,7 +902,8 @@ int TYPE1SC::setAWSIOT_TIMEOUT(int value) {
 	return ret;
 }
 
-int TYPE1SC::AWSIOT_Connect(void) {
+int TYPE1SC::AWSIOT_Connect(void)
+{
 	char szCmd[128];
 	char resBuffer[128];
 
@@ -833,13 +912,16 @@ int TYPE1SC::AWSIOT_Connect(void) {
 	sprintf(szCmd, "AT%%AWSIOTCMD=\"CONNECT\"");
 
 	if (0 == sendATcmdOmitOK(szCmd, resBuffer, sizeof(resBuffer), "\"CONCONF\"",
-				20000)) {
+							 20000))
+	{
 		char *pszState = NULL;
 
 		pszState = strstr(resBuffer, ",");
-		if (pszState != NULL) {
+		if (pszState != NULL)
+		{
 			pszState++;
-			if (*pszState == '0') {
+			if (*pszState == '0')
+			{
 				SWIR_TRACE(F("connect AWS IOT Service..."));
 				return 0;
 			}
@@ -850,7 +932,8 @@ int TYPE1SC::AWSIOT_Connect(void) {
 	return 1;
 }
 
-int TYPE1SC::AWSIOT_DisConnect(void) {
+int TYPE1SC::AWSIOT_DisConnect(void)
+{
 	char szCmd[128];
 	char resBuffer[128];
 
@@ -859,13 +942,16 @@ int TYPE1SC::AWSIOT_DisConnect(void) {
 	sprintf(szCmd, "AT%%AWSIOTCMD=\"DISCONNECT\"");
 
 	if (0 == sendATcmdOmitOK(szCmd, resBuffer, sizeof(resBuffer), "\"DISCONF\"",
-				20000)) {
+							 20000))
+	{
 		char *pszState = NULL;
 
 		pszState = strstr(resBuffer, ",");
-		if (pszState != NULL) {
+		if (pszState != NULL)
+		{
 			pszState++;
-			if (*pszState == '0') {
+			if (*pszState == '0')
+			{
 				SWIR_TRACE(F("disconnect AWS IOT Service..."));
 				return 0;
 			}
@@ -876,7 +962,8 @@ int TYPE1SC::AWSIOT_DisConnect(void) {
 	return 1;
 }
 
-int TYPE1SC::AWSIOT_SUBSCRIBE(char *topic) {
+int TYPE1SC::AWSIOT_SUBSCRIBE(char *topic)
+{
 	char szCmd[128];
 	char resBuffer[128];
 	char clientTopic[128];
@@ -889,18 +976,22 @@ int TYPE1SC::AWSIOT_SUBSCRIBE(char *topic) {
 	sprintf(szCmd, "AT%%AWSIOTCMD=\"SUBSCRIBE\",\"%s\"", clientTopic);
 
 	if (0 == sendATcmdOmitOK(szCmd, resBuffer, sizeof(resBuffer), "\"SUBCONF\"",
-				20000)) {
+							 20000))
+	{
 		char *pszState = NULL;
 		char *pszState2 = NULL;
 
 		pszState = strstr(resBuffer, ",");
-		if (pszState != NULL) {
+		if (pszState != NULL)
+		{
 			pszState++;
 			pszState2 = pszState;
 			pszState = strstr(pszState2, ",");
-			if (pszState != NULL) {
+			if (pszState != NULL)
+			{
 				pszState++;
-				if (*pszState == '0') {
+				if (*pszState == '0')
+				{
 					SWIR_TRACE(F("Subscription success..."));
 					return 0;
 				}
@@ -912,7 +1003,8 @@ int TYPE1SC::AWSIOT_SUBSCRIBE(char *topic) {
 	return 1;
 }
 
-int TYPE1SC::AWSIOT_UnSUBSCRIBE(char *topic) {
+int TYPE1SC::AWSIOT_UnSUBSCRIBE(char *topic)
+{
 	char szCmd[128];
 	char resBuffer[128];
 	char clientTopic[128];
@@ -925,18 +1017,22 @@ int TYPE1SC::AWSIOT_UnSUBSCRIBE(char *topic) {
 	sprintf(szCmd, "AT%%AWSIOTCMD=\"UNSUBSCRIBE\",\"%s\"", clientTopic);
 
 	if (0 == sendATcmdOmitOK(szCmd, resBuffer, sizeof(resBuffer), "\"UNSCONF\"",
-				5000)) {
+							 5000))
+	{
 		char *pszState = NULL;
 		char *pszState2 = NULL;
 
 		pszState = strstr(resBuffer, ",");
-		if (pszState != NULL) {
+		if (pszState != NULL)
+		{
 			pszState++;
 			pszState2 = pszState;
 			pszState = strstr(pszState2, ",");
-			if (pszState != NULL) {
+			if (pszState != NULL)
+			{
 				pszState++;
-				if (*pszState == '0') {
+				if (*pszState == '0')
+				{
 					SWIR_TRACE(F("Unsubscription success..."));
 					return 0;
 				}
@@ -948,7 +1044,8 @@ int TYPE1SC::AWSIOT_UnSUBSCRIBE(char *topic) {
 	return 1;
 }
 
-int TYPE1SC::AWSIOT_Publish(char *topic, char *Data) {
+int TYPE1SC::AWSIOT_Publish(char *topic, char *Data)
+{
 	char szCmd[512];
 	char resBuffer[512];
 	char clientTopic[128];
@@ -965,7 +1062,8 @@ int TYPE1SC::AWSIOT_Publish(char *topic, char *Data) {
 			clientData);
 
 	if (0 == sendATcmdOmitOK(szCmd, resBuffer, sizeof(resBuffer), "\"PUBRCV\"",
-				20000)) {
+							 20000))
+	{
 		SWIR_TRACE(F("Publish success..."));
 		TYPE1SC_serial_clearbuf();
 		return 0;
@@ -975,7 +1073,8 @@ int TYPE1SC::AWSIOT_Publish(char *topic, char *Data) {
 	return 1;
 }
 
-int TYPE1SC::setAPN(char *apn) {
+int TYPE1SC::setAPN(char *apn)
+{
 	char szCmd[128];
 	char apnAddr[64];
 	char resBuffer[16];
@@ -991,8 +1090,8 @@ int TYPE1SC::setAPN(char *apn) {
 	ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 5000);
 
 	strcpy(
-			szCmd,
-			"AT%SETSYSCFG=\"sw_cfg.nb_vendor_scan_plan.plmn_sel_mode\",\"STANDARD\"");
+		szCmd,
+		"AT%SETSYSCFG=\"sw_cfg.nb_vendor_scan_plan.plmn_sel_mode\",\"STANDARD\"");
 	ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 5000);
 
 	memset(apnAddr, 0x0, sizeof(apnAddr));
@@ -1005,7 +1104,8 @@ int TYPE1SC::setAPN(char *apn) {
 	return ret;
 }
 
-int TYPE1SC::getAPN(char *apn, int bufferSize) {
+int TYPE1SC::getAPN(char *apn, int bufferSize)
+{
 	char szCmd[64];
 	char resBuffer[128];
 
@@ -1014,20 +1114,24 @@ int TYPE1SC::getAPN(char *apn, int bufferSize) {
 	memset(apn, 0x0, bufferSize);
 	strcpy(szCmd, "AT%PDNACT?");
 
-	if (0 == sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "PDNACT:")) {
+	if (0 == sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "PDNACT:"))
+	{
 		char *pszState = NULL;
 		char *pszState2 = NULL;
 
 		pszState = strstr(resBuffer, ",");
-		if (pszState != NULL) {
+		if (pszState != NULL)
+		{
 			pszState++;
 			pszState2 = pszState;
 			pszState = strstr(pszState2, ",");
-			if (pszState != NULL) {
+			if (pszState != NULL)
+			{
 				pszState++;
 				pszState2 = pszState;
 				pszState = strstr(pszState2, ",");
-				if (pszState != NULL) {
+				if (pszState != NULL)
+				{
 					strncpy(apn, pszState2, pszState - pszState2);
 					// SWIR_TRACE(F("apn : %s"),apn);
 					return 0;
@@ -1038,7 +1142,8 @@ int TYPE1SC::getAPN(char *apn, int bufferSize) {
 	return 1;
 }
 
-int TYPE1SC::setPPP(void) {
+int TYPE1SC::setPPP(void)
+{
 	char szCmd[128];
 	char resBuffer[128];
 
@@ -1048,7 +1153,8 @@ int TYPE1SC::setPPP(void) {
 	strcpy(szCmd, "ATD*99***1#");
 
 	if (0 ==
-			sendATcmdOmitOK(szCmd, resBuffer, sizeof(resBuffer), "CONNECT", 20000)) {
+		sendATcmdOmitOK(szCmd, resBuffer, sizeof(resBuffer), "CONNECT", 20000))
+	{
 		return 0;
 	}
 
@@ -1056,7 +1162,8 @@ int TYPE1SC::setPPP(void) {
 	return 1;
 }
 
-int TYPE1SC::setAT(void) {
+int TYPE1SC::setAT(void)
+{
 	char szCmd[128];
 	char resBuffer[128];
 	int ret, i;
@@ -1069,7 +1176,8 @@ int TYPE1SC::setAT(void) {
 
 	memset(resBuffer, 0, sizeof(resBuffer));
 
-	for (i = 0; i < 3; i++) {
+	for (i = 0; i < 3; i++)
+	{
 		_serial.print(szCmd[i]);
 		delay(100);
 	}
@@ -1079,7 +1187,8 @@ int TYPE1SC::setAT(void) {
 	return ret;
 }
 
-int TYPE1SC::writeKEY(const char *fileName, int isKEY, const char *key) {
+int TYPE1SC::writeKEY(const char *fileName, int isKEY, const char *key)
+{
 	char szCmd[2400];
 	char resBuffer[32];
 	int ret;
@@ -1096,21 +1205,25 @@ int TYPE1SC::writeKEY(const char *fileName, int isKEY, const char *key) {
 	pBuffer = szCmd + strlen(szCmd);
 	pKEY = (char *)key;
 
-	while (1) {
+	while (1)
+	{
 
-		if (*pKEY == '\0') {
+		if (*pKEY == '\0')
+		{
 			*pBuffer = '\"';
 			*(pBuffer + 1) = '\r';
 			*(pBuffer + 2) = '\n';
 			break;
-		} else {
+		}
+		else
+		{
 			*pBuffer = *pKEY;
 			pBuffer++;
 			pKEY++;
 		}
 	}
 	/* Debug only */
-	//	_debug.println("<------------->");	
+	//	_debug.println("<------------->");
 	//	_debug.println(szCmd);	/* Debug KEY Data */
 	//	_debug.println("<------------->");
 
@@ -1119,7 +1232,8 @@ int TYPE1SC::writeKEY(const char *fileName, int isKEY, const char *key) {
 	return ret;
 }
 
-int TYPE1SC::addCert(int nProfile) {
+int TYPE1SC::addCert(int nProfile)
+{
 	char szCmd[256];
 	char resBuffer[16];
 	int ret;
@@ -1136,7 +1250,8 @@ int TYPE1SC::addCert(int nProfile) {
 	return ret;
 }
 
-int TYPE1SC::addHTTPCert(int nProfile) {
+int TYPE1SC::addHTTPCert(int nProfile)
+{
 	char szCmd[256];
 	char resBuffer[32];
 	int ret;
@@ -1152,7 +1267,8 @@ int TYPE1SC::addHTTPCert(int nProfile) {
 	return ret;
 }
 
-int TYPE1SC::delCert(int nProfile) {
+int TYPE1SC::delCert(int nProfile)
+{
 	char szCmd[256];
 	char resBuffer[16];
 	int ret;
@@ -1166,7 +1282,8 @@ int TYPE1SC::delCert(int nProfile) {
 	return ret;
 }
 
-int TYPE1SC::getCIMI(char *szCIMI, int nBufferSize) {
+int TYPE1SC::getCIMI(char *szCIMI, int nBufferSize)
+{
 	char szCmd[16];
 	char *aLine[BG_LINE]; // read up to 20 lines
 
@@ -1178,7 +1295,8 @@ int TYPE1SC::getCIMI(char *szCIMI, int nBufferSize) {
 	char *sLine;
 	memset(szCIMI, 0, nBufferSize);
 
-	for (int i = 0; i < nNbLine; i++) {
+	for (int i = 0; i < nNbLine; i++)
+	{
 		sLine = aLine[i];
 
 		SWIR_TRACE(F("getCIMI, line[%d]: %s\n"), i, sLine);
@@ -1200,12 +1318,15 @@ int TYPE1SC::getCIMI(char *szCIMI, int nBufferSize) {
 		}
 
 		int nLen = strlen(sLine);
-		if (nLen != 15) {
+		if (nLen != 15)
+		{
 			free(aLine[i]);
 			continue;
 		}
-		for (int k = 0; k < nLen; k++) {
-			if (sLine[k] < '0' || sLine[k] > '9') {
+		for (int k = 0; k < nLen; k++)
+		{
+			if (sLine[k] < '0' || sLine[k] > '9')
+			{
 				continue;
 			}
 		}
@@ -1217,7 +1338,8 @@ int TYPE1SC::getCIMI(char *szCIMI, int nBufferSize) {
 	return (strlen(szCIMI) > 0 ? 0 : 1);
 }
 
-int TYPE1SC::getIMEI(char *szIMEI, int nBufferSize) {
+int TYPE1SC::getIMEI(char *szIMEI, int nBufferSize)
+{
 	char szCmd[16];
 	char *aLine[BG_LINE]; // read up to 20 lines
 
@@ -1229,7 +1351,8 @@ int TYPE1SC::getIMEI(char *szIMEI, int nBufferSize) {
 	char *sLine;
 	memset(szIMEI, 0, nBufferSize);
 
-	for (int i = 0; i < nNbLine; i++) {
+	for (int i = 0; i < nNbLine; i++)
+	{
 		sLine = aLine[i];
 
 		SWIR_TRACE(F("getIMEI, line[%d]: %s\n"), i, sLine);
@@ -1251,12 +1374,15 @@ int TYPE1SC::getIMEI(char *szIMEI, int nBufferSize) {
 		}
 
 		int nLen = strlen(sLine);
-		if (nLen != 15) {
+		if (nLen != 15)
+		{
 			free(aLine[i]);
 			continue;
 		}
-		for (int k = 0; k < nLen; k++) {
-			if (sLine[k] < '0' || sLine[k] > '9') {
+		for (int k = 0; k < nLen; k++)
+		{
+			if (sLine[k] < '0' || sLine[k] > '9')
+			{
 				continue;
 			}
 		}
@@ -1268,7 +1394,8 @@ int TYPE1SC::getIMEI(char *szIMEI, int nBufferSize) {
 	return (strlen(szIMEI) > 0 ? 0 : 1);
 }
 
-int TYPE1SC::getICCID(char *szICCID, int nBufferSize) {
+int TYPE1SC::getICCID(char *szICCID, int nBufferSize)
+{
 	char szCmd[64];
 	char resBuffer[128];
 
@@ -1277,27 +1404,32 @@ int TYPE1SC::getICCID(char *szICCID, int nBufferSize) {
 	memset(szICCID, 0x0, nBufferSize);
 	strcpy(szCmd, "AT%CCID");
 
-	if (0 == sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "%CCID: ")) {
+	if (0 == sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "%CCID: "))
+	{
 		strcpy(szICCID, resBuffer);
 		return 0;
 	}
 	return 1;
 }
 
-int TYPE1SC::canConnect() {
+int TYPE1SC::canConnect()
+{
 	char szATcmd[16];
 	char resBuffer[32];
 
 	TYPE1SC_serial_clearbuf();
 
 	sprintf(szATcmd, "AT+CEREG?");
-	if (0 == sendATcmd(szATcmd, resBuffer, sizeof(resBuffer), "+CEREG")) {
+	if (0 == sendATcmd(szATcmd, resBuffer, sizeof(resBuffer), "+CEREG"))
+	{
 		char *pszState = NULL;
 
 		pszState = strstr(resBuffer, ",");
-		if (pszState != NULL) {
+		if (pszState != NULL)
+		{
 			pszState++;
-			if (*pszState == '1' || *pszState == '5') {
+			if (*pszState == '1' || *pszState == '5')
+			{
 				SWIR_TRACE(F("ready to make data call..."));
 				return 0; // ready to connect. CEREG equals to 1 (home) nor 5 (roaming)
 			}
@@ -1308,15 +1440,17 @@ int TYPE1SC::canConnect() {
 	return 1;
 }
 
-int TYPE1SC::getRejectCause(int *rejectNum) {
+int TYPE1SC::getRejectCause(int *rejectNum)
+{
 	char szATcmd[16];
 	char resBuffer[128];
-	int  number;
+	int number;
 
 	TYPE1SC_serial_clearbuf();
 
 	sprintf(szATcmd, "AT%%CEER?");
-	if (0 == sendATcmd(szATcmd, resBuffer, sizeof(resBuffer), "\"REJECT\",#", 5000)) {
+	if (0 == sendATcmd(szATcmd, resBuffer, sizeof(resBuffer), "\"REJECT\",#", 5000))
+	{
 		number = atoi(resBuffer);
 
 		SWIR_TRACE(F("Rejct Number %d \r\n"), number);
@@ -1328,7 +1462,8 @@ int TYPE1SC::getRejectCause(int *rejectNum) {
 	return 1;
 }
 
-int TYPE1SC::getRSSI(int *rssi) {
+int TYPE1SC::getRSSI(int *rssi)
+{
 	char szATcmd[16];
 	char resBuffer[64];
 	int Rssi;
@@ -1336,7 +1471,8 @@ int TYPE1SC::getRSSI(int *rssi) {
 	TYPE1SC_serial_clearbuf();
 
 	sprintf(szATcmd, "AT%%MEAS=\"8\"");
-	if (0 == sendATcmd(szATcmd, resBuffer, sizeof(resBuffer), "RSSI = ", 4000)) {
+	if (0 == sendATcmd(szATcmd, resBuffer, sizeof(resBuffer), "RSSI = ", 4000))
+	{
 		Rssi = atoi(resBuffer);
 
 		SWIR_TRACE(F("RSSI %d \r\n"), Rssi);
@@ -1348,7 +1484,8 @@ int TYPE1SC::getRSSI(int *rssi) {
 	return 1;
 }
 
-int TYPE1SC::getTxPower(char *txPower, int txPowerSize) {
+int TYPE1SC::getTxPower(char *txPower, int txPowerSize)
+{
 	char szCmd[16];
 	int ret;
 
@@ -1362,7 +1499,8 @@ int TYPE1SC::getTxPower(char *txPower, int txPowerSize) {
 	return ret;
 }
 
-int TYPE1SC::getIPAddr(const char *srcAddr, char *dstAddr, int dstAddrSize) {
+int TYPE1SC::getIPAddr(const char *srcAddr, char *dstAddr, int dstAddrSize)
+{
 	char szCmd[128];
 	char szRst[128];
 	int ret;
@@ -1374,12 +1512,14 @@ int TYPE1SC::getIPAddr(const char *srcAddr, char *dstAddr, int dstAddrSize) {
 	sprintf(szCmd, "AT%%DNSRSLV=0,\"%s\"", srcAddr);
 	ret = sendATcmd(szCmd, szRst, sizeof(szRst), "%DNSRSLV:0,\"", 10000);
 
-	if (!ret) {
+	if (!ret)
+	{
 		char *pBuffer1, *pBuffer2;
 		pBuffer1 = szRst;
 		pBuffer2 = strstr(pBuffer1, "\"");
 
-		if (pBuffer2 != NULL) {
+		if (pBuffer2 != NULL)
+		{
 			memcpy(dstAddr, pBuffer1, pBuffer2 - pBuffer1);
 		}
 	}
@@ -1387,7 +1527,8 @@ int TYPE1SC::getIPAddr(const char *srcAddr, char *dstAddr, int dstAddrSize) {
 	return ret;
 }
 
-int TYPE1SC::getServingCell(int *servingCell) {
+int TYPE1SC::getServingCell(int *servingCell)
+{
 	char szATcmd[32];
 	char resBuffer[128];
 	int ServingCell;
@@ -1395,24 +1536,30 @@ int TYPE1SC::getServingCell(int *servingCell) {
 	TYPE1SC_serial_clearbuf();
 
 	sprintf(szATcmd, "AT%%LBSCMD=\"MLIDS\"");
-	if (0 == sendATcmd(szATcmd, resBuffer, sizeof(resBuffer), "%LBSCMD:")) {
+	if (0 == sendATcmd(szATcmd, resBuffer, sizeof(resBuffer), "%LBSCMD:"))
+	{
 		char *pszState = NULL;
 		char *pszState2 = NULL;
 
 		pszState2 = strstr(resBuffer, ",");
 		if (pszState2 != NULL)
 			pszState2++;
-		else {
+		else
+		{
 			SWIR_TRACE(F("get Serving Cell Fail..."));
 			return 1;
 		}
 
-		for (int i = 0; i < 10; i++) {
+		for (int i = 0; i < 10; i++)
+		{
 			pszState = strstr(pszState2, ",");
-			if (pszState != NULL) {
+			if (pszState != NULL)
+			{
 				pszState++;
 				pszState2 = pszState;
-			} else {
+			}
+			else
+			{
 				SWIR_TRACE(F("get Serving Cell Fail..."));
 				return 1;
 			}
@@ -1429,7 +1576,8 @@ int TYPE1SC::getServingCell(int *servingCell) {
 	return 1;
 }
 
-int TYPE1SC::getRSRQ(int *rsrq) {
+int TYPE1SC::getRSRQ(int *rsrq)
+{
 	char szATcmd[16];
 	char resBuffer[64];
 	int Rsrq;
@@ -1437,7 +1585,8 @@ int TYPE1SC::getRSRQ(int *rsrq) {
 	TYPE1SC_serial_clearbuf();
 
 	sprintf(szATcmd, "AT%%MEAS=\"8\"");
-	if (0 == sendATcmd(szATcmd, resBuffer, sizeof(resBuffer), "RSRQ = ", 4000)) {
+	if (0 == sendATcmd(szATcmd, resBuffer, sizeof(resBuffer), "RSRQ = ", 4000))
+	{
 		Rsrq = atoi(resBuffer);
 
 		SWIR_TRACE(F("RSRQ %d \r\n"), Rsrq);
@@ -1449,7 +1598,8 @@ int TYPE1SC::getRSRQ(int *rsrq) {
 	return 1;
 }
 
-int TYPE1SC::getRSRP(int *rsrp) {
+int TYPE1SC::getRSRP(int *rsrp)
+{
 	char szATcmd[16];
 	char resBuffer[64];
 	int Rsrp;
@@ -1457,7 +1607,8 @@ int TYPE1SC::getRSRP(int *rsrp) {
 	TYPE1SC_serial_clearbuf();
 
 	sprintf(szATcmd, "AT%%MEAS=\"8\"");
-	if (0 == sendATcmd(szATcmd, resBuffer, sizeof(resBuffer), "RSRP = ", 4000)) {
+	if (0 == sendATcmd(szATcmd, resBuffer, sizeof(resBuffer), "RSRP = ", 4000))
+	{
 		Rsrp = atoi(resBuffer);
 
 		SWIR_TRACE(F("RSRP %d \r\n"), Rsrp);
@@ -1469,7 +1620,8 @@ int TYPE1SC::getRSRP(int *rsrp) {
 	return 1;
 }
 
-int TYPE1SC::getSINR(int *sinr) {
+int TYPE1SC::getSINR(int *sinr)
+{
 	char szATcmd[16];
 	char resBuffer[64];
 	int Sinr;
@@ -1477,7 +1629,8 @@ int TYPE1SC::getSINR(int *sinr) {
 	TYPE1SC_serial_clearbuf();
 
 	sprintf(szATcmd, "AT%%MEAS=\"8\"");
-	if (0 == sendATcmd(szATcmd, resBuffer, sizeof(resBuffer), "SINR = ", 4000)) {
+	if (0 == sendATcmd(szATcmd, resBuffer, sizeof(resBuffer), "SINR = ", 4000))
+	{
 		Sinr = atoi(resBuffer);
 
 		SWIR_TRACE(F("SINR %d \r\n"), Sinr);
@@ -1490,7 +1643,8 @@ int TYPE1SC::getSINR(int *sinr) {
 }
 
 int TYPE1SC::socketCreate(int service_type, char *remote_address,
-		long remote_port) {
+						  long remote_port)
+{
 	char szCmd[128];
 	char recvBuf[128];
 	char *service[] = {"UDP", "TCP"};
@@ -1500,7 +1654,8 @@ int TYPE1SC::socketCreate(int service_type, char *remote_address,
 	sprintf(szCmd, "AT%%SOCKETCMD=\"ALLOCATE\",0,\"%s\",\"OPEN\",\"%s\",%d,1500",
 			service[service_type], remote_address, remote_port);
 
-	if (0 == sendATcmd(szCmd, recvBuf, sizeof(recvBuf), "SOCKETCMD:", 20000)) {
+	if (0 == sendATcmd(szCmd, recvBuf, sizeof(recvBuf), "SOCKETCMD:", 20000))
+	{
 		_nSocket = atoi(recvBuf);
 		_nSocket = 1; // Hard Cording (need Test by Murata or Altair)
 		if (_nSocket > 4)
@@ -1515,7 +1670,8 @@ int TYPE1SC::socketCreate(int service_type, char *remote_address,
 	return 1;
 }
 
-int TYPE1SC::socketActivate() {
+int TYPE1SC::socketActivate()
+{
 	char szCmd[32];
 	char resBuffer[128];
 	int ret;
@@ -1530,7 +1686,8 @@ int TYPE1SC::socketActivate() {
 	return ret;
 }
 
-int TYPE1SC::socketInfo(char *info, int infoSize) {
+int TYPE1SC::socketInfo(char *info, int infoSize)
+{
 	char szCmd[128];
 	char resBuffer[128];
 	int ret;
@@ -1542,16 +1699,22 @@ int TYPE1SC::socketInfo(char *info, int infoSize) {
 	sprintf(szCmd, "AT%%SOCKETCMD=\"INFO\",%d", _nSocket);
 
 	ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "SOCKETCMD:\"", 5000);
-	if (!ret) {
+	if (!ret)
+	{
 		char *pBuffer;
 
 		pBuffer = resBuffer;
 
-		if (*pBuffer == 'A') {
+		if (*pBuffer == 'A')
+		{
 			strcpy(info, "ACTIVATED");
-		} else if (*pBuffer == 'D') {
+		}
+		else if (*pBuffer == 'D')
+		{
 			strcpy(info, "DEACTIVATED");
-		} else {
+		}
+		else
+		{
 			strcpy(info, "FAIL");
 		}
 	}
@@ -1559,7 +1722,8 @@ int TYPE1SC::socketInfo(char *info, int infoSize) {
 	return ret;
 }
 
-int TYPE1SC::socketDeActivate() {
+int TYPE1SC::socketDeActivate()
+{
 	char szCmd[32];
 	char resBuffer[32];
 	int ret;
@@ -1574,7 +1738,8 @@ int TYPE1SC::socketDeActivate() {
 	return ret;
 }
 
-int TYPE1SC::socketSSL(int tlsProfileNo) {
+int TYPE1SC::socketSSL(int tlsProfileNo)
+{
 	char szCmd[32];
 	char resBuffer[32];
 	int ret;
@@ -1589,7 +1754,8 @@ int TYPE1SC::socketSSL(int tlsProfileNo) {
 	return ret;
 }
 
-int TYPE1SC::socketClose() {
+int TYPE1SC::socketClose()
+{
 	char szCmd[32];
 	char resBuffer[32];
 	int ret;
@@ -1607,7 +1773,8 @@ int TYPE1SC::socketClose() {
 #define NIBBLE_TO_HEX_CHAR(i) ((i <= 9) ? ('0' + i) : ('A' - 10 + i))
 #define HIGH_NIBBLE(i) ((i >> 4) & 0x0F)
 #define LOW_NIBBLE(i) (i & 0x0F)
-int TYPE1SC::socketSend(char *buffer, int size) {
+int TYPE1SC::socketSend(char *buffer, int size)
+{
 	char resBuffer[32];
 	char *sendBuffer;
 	char *pSendBuffer;
@@ -1633,7 +1800,8 @@ int TYPE1SC::socketSend(char *buffer, int size) {
 	pSendBuffer = sendBuffer;
 	pSendBuffer += pSeek;
 
-	for (size_t i = 0; i < size; ++i) {
+	for (size_t i = 0; i < size; ++i)
+	{
 		*pSendBuffer =
 			(static_cast<char>(NIBBLE_TO_HEX_CHAR(HIGH_NIBBLE(buffer[i]))));
 		*pSendBuffer++;
@@ -1654,14 +1822,16 @@ int TYPE1SC::socketSend(char *buffer, int size) {
 	return ret;
 }
 
-int TYPE1SC::socketSend(const char *str) {
+int TYPE1SC::socketSend(const char *str)
+{
 	return socketSend((char *)str, strlen(str));
 }
 
 #define HEX_CHAR_TO_NIBBLE(c) ((c >= 'A') ? (c - 'A' + 0x0A) : (c - '0'))
-#define HEX_PAIR_TO_BYTE(h, l)                                                 \
+#define HEX_PAIR_TO_BYTE(h, l) \
 	((HEX_CHAR_TO_NIBBLE(h) << 4) + HEX_CHAR_TO_NIBBLE(l))
-int TYPE1SC::socketRecv(char *buffer, int bufferSize, int *recvSize) {
+int TYPE1SC::socketRecv(char *buffer, int bufferSize, int *recvSize)
+{
 	char szCmd[32];
 	char resBuffer[2048]; /* Max 1024 byte Receive */
 	int RecvSize, ret;
@@ -1677,7 +1847,8 @@ int TYPE1SC::socketRecv(char *buffer, int bufferSize, int *recvSize) {
 	sprintf(szCmd, "AT%%SOCKETDATA=\"RECEIVE\",%d,1000", _nSocket);
 	ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "SOCKETDATA:", 20000);
 
-	if (!ret) {
+	if (!ret)
+	{
 		SWIR_TRACE(F("Recv %s\n"), resBuffer);
 
 		pszState = strstr(resBuffer, ",");
@@ -1691,9 +1862,11 @@ int TYPE1SC::socketRecv(char *buffer, int bufferSize, int *recvSize) {
 
 		pszState2 = pszState;
 
-		for (int i = 0; i < 2; i++) {
+		for (int i = 0; i < 2; i++)
+		{
 			pszState = strstr(pszState2, ",");
-			if (pszState != NULL) {
+			if (pszState != NULL)
+			{
 				pszState++;
 				pszState2 = pszState;
 			}
@@ -1703,11 +1876,13 @@ int TYPE1SC::socketRecv(char *buffer, int bufferSize, int *recvSize) {
 		pszState2 = pszState;
 		pszState = strstr(pszState2, "\"");
 
-		if (pszState != NULL) {
+		if (pszState != NULL)
+		{
 
 			memset(buffer, 0, bufferSize);
 
-			for (size_t i = 0; i < RecvSize * 2; i += 2) {
+			for (size_t i = 0; i < RecvSize * 2; i += 2)
+			{
 				buffer[i / 2] = HEX_PAIR_TO_BYTE(pszState2[i], pszState2[i + 1]);
 			}
 		}
@@ -1716,7 +1891,8 @@ int TYPE1SC::socketRecv(char *buffer, int bufferSize, int *recvSize) {
 	return ret;
 }
 
-int TYPE1SC::socketRecvHTTP(char *buffer, int bufferSize, int *recvSize) {
+int TYPE1SC::socketRecvHTTP(char *buffer, int bufferSize, int *recvSize)
+{
 	char szCmd[32];
 	char resBuffer[3032]; /* Max 1500 byte Receive (+32 bytes command buffer) */
 	int RecvSize, ret;
@@ -1727,13 +1903,15 @@ int TYPE1SC::socketRecvHTTP(char *buffer, int bufferSize, int *recvSize) {
 
 	memset(resBuffer, 0, sizeof(resBuffer));
 
-	if(!readATresponseLineOmitOK(resBuffer, sizeof(resBuffer), "SOCKETEV:1,1", 60000)){
+	if (!readATresponseLineOmitOK(resBuffer, sizeof(resBuffer), "SOCKETEV:1,1", 60000))
+	{
 		memset(resBuffer, 0, sizeof(resBuffer));
 
 		sprintf(szCmd, "AT%%SOCKETDATA=\"RECEIVE\",%d,1500", _nSocket);
 		ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "SOCKETDATA:", 20000);
 
-		if (!ret) {
+		if (!ret)
+		{
 			SWIR_TRACE(F("Recv %s\n"), resBuffer);
 
 			pszState = strstr(resBuffer, ",");
@@ -1747,9 +1925,11 @@ int TYPE1SC::socketRecvHTTP(char *buffer, int bufferSize, int *recvSize) {
 
 			pszState2 = pszState;
 
-			for (int i = 0; i < 2; i++) {
+			for (int i = 0; i < 2; i++)
+			{
 				pszState = strstr(pszState2, ",");
-				if (pszState != NULL) {
+				if (pszState != NULL)
+				{
 					pszState++;
 					pszState2 = pszState;
 				}
@@ -1759,11 +1939,13 @@ int TYPE1SC::socketRecvHTTP(char *buffer, int bufferSize, int *recvSize) {
 			pszState2 = pszState;
 			pszState = strstr(pszState2, "\"");
 
-			if (pszState != NULL) {
+			if (pszState != NULL)
+			{
 
 				memset(buffer, 0, bufferSize);
 
-				for (size_t i = 0; i < RecvSize * 2; i += 2) {
+				for (size_t i = 0; i < RecvSize * 2; i += 2)
+				{
 					buffer[i / 2] = HEX_PAIR_TO_BYTE(pszState2[i], pszState2[i + 1]);
 				}
 			}
@@ -1773,8 +1955,9 @@ int TYPE1SC::socketRecvHTTP(char *buffer, int bufferSize, int *recvSize) {
 }
 
 int TYPE1SC::sendATcmdOmitOK(char *szCmd, char *szResponse,
-		int nResponseBufSize, const char *szResponseFilter,
-		unsigned long ulWaitDelay) {
+							 int nResponseBufSize, const char *szResponseFilter,
+							 unsigned long ulWaitDelay)
+{
 	int nRet = 0;
 
 	memset(szResponse, 0, nResponseBufSize);
@@ -1785,11 +1968,14 @@ int TYPE1SC::sendATcmdOmitOK(char *szCmd, char *szResponse,
 	_serial.println(szCmd);
 
 	nRet = readATresponseLineOmitOK(szResponse, nResponseBufSize,
-			szResponseFilter, ulWaitDelay);
+									szResponseFilter, ulWaitDelay);
 
-	if (nRet == 0) {
+	if (nRet == 0)
+	{
 		SWIR_TRACE(F("...sendATcmd OK"));
-	} else {
+	}
+	else
+	{
 		SWIR_TRACE(F("...sendATcmd Fails"));
 	}
 
@@ -1797,9 +1983,10 @@ int TYPE1SC::sendATcmdOmitOK(char *szCmd, char *szResponse,
 }
 
 int TYPE1SC::sendATcmdOmitOK(char *szCmd, char *szResponse,
-		int nResponseBufSize, const char *szResponseFilter,
-		char *SendData, int SendDataSize,
-		unsigned long ulWaitDelay) {
+							 int nResponseBufSize, const char *szResponseFilter,
+							 char *SendData, int SendDataSize,
+							 unsigned long ulWaitDelay)
+{
 	int nRet = 0;
 
 	memset(szResponse, 0, nResponseBufSize);
@@ -1813,11 +2000,14 @@ int TYPE1SC::sendATcmdOmitOK(char *szCmd, char *szResponse,
 		_serial.print(SendData[i]);
 
 	nRet = readATresponseLineOmitOK(szResponse, nResponseBufSize,
-			szResponseFilter, ulWaitDelay);
+									szResponseFilter, ulWaitDelay);
 
-	if (nRet == 0) {
+	if (nRet == 0)
+	{
 		SWIR_TRACE(F("...sendATcmd OK"));
-	} else {
+	}
+	else
+	{
 		SWIR_TRACE(F("...sendATcmd Fails"));
 	}
 
@@ -1825,8 +2015,9 @@ int TYPE1SC::sendATcmdOmitOK(char *szCmd, char *szResponse,
 }
 
 int TYPE1SC::writeATcmd(char *szCmd, char *szResponse, int nResponseBufSize,
-		const char *szResponseFilter,
-		unsigned long ulWaitDelay) {
+						const char *szResponseFilter,
+						unsigned long ulWaitDelay)
+{
 	int nRet = 0;
 	int i = 0;
 
@@ -1834,19 +2025,24 @@ int TYPE1SC::writeATcmd(char *szCmd, char *szResponse, int nResponseBufSize,
 
 	_serial.setTimeout(ulWaitDelay + 500);
 
-	while (1) {
-		if (*(szCmd + i) == 0x0) {
+	while (1)
+	{
+		if (*(szCmd + i) == 0x0)
+		{
 			break;
 		}
 		_serial.print(szCmd[i++]);
 	}
 
 	nRet = readATresponseLine(szResponse, nResponseBufSize, szResponseFilter,
-			ulWaitDelay);
+							  ulWaitDelay);
 
-	if (nRet == 0) {
+	if (nRet == 0)
+	{
 		SWIR_TRACE(F("...sendATcmd OK"));
-	} else {
+	}
+	else
+	{
 		SWIR_TRACE(F("...sendATcmd Fails"));
 	}
 
@@ -1854,8 +2050,9 @@ int TYPE1SC::writeATcmd(char *szCmd, char *szResponse, int nResponseBufSize,
 }
 
 int TYPE1SC::sendATcmd(char *szCmd, char *szResponse, int nResponseBufSize,
-		const char *szResponseFilter,
-		unsigned long ulWaitDelay) {
+					   const char *szResponseFilter,
+					   unsigned long ulWaitDelay)
+{
 	int nRet = 0;
 
 	memset(szResponse, 0, nResponseBufSize);
@@ -1866,11 +2063,14 @@ int TYPE1SC::sendATcmd(char *szCmd, char *szResponse, int nResponseBufSize,
 	_serial.println(szCmd);
 
 	nRet = readATresponseLine(szResponse, nResponseBufSize, szResponseFilter,
-			ulWaitDelay);
+							  ulWaitDelay);
 
-	if (nRet == 0) {
+	if (nRet == 0)
+	{
 		SWIR_TRACE(F("...sendATcmd OK"));
-	} else {
+	}
+	else
+	{
 		SWIR_TRACE(F("...sendATcmd Fails"));
 	}
 
@@ -1878,7 +2078,8 @@ int TYPE1SC::sendATcmd(char *szCmd, char *szResponse, int nResponseBufSize,
 }
 
 int TYPE1SC::sendATcmd(char *szCmd, char *aLine[], int nMaxLine,
-		unsigned long ulWaitDelay) {
+					   unsigned long ulWaitDelay)
+{
 	int nRet = 0;
 
 	SWIR_TRACE(F("sendATcmd2 (%s) - %d..."), szCmd, ulWaitDelay);
@@ -1888,9 +2089,12 @@ int TYPE1SC::sendATcmd(char *szCmd, char *aLine[], int nMaxLine,
 
 	nRet = readATresponseLine(aLine, nMaxLine, ulWaitDelay);
 
-	if (nRet > 0) {
+	if (nRet > 0)
+	{
 		SWIR_TRACE(F("...sendATcmd OK"));
-	} else {
+	}
+	else
+	{
 		SWIR_TRACE(F("...sendATcmd Fails"));
 	}
 
@@ -1898,8 +2102,9 @@ int TYPE1SC::sendATcmd(char *szCmd, char *aLine[], int nMaxLine,
 }
 
 int TYPE1SC::readATresponseLineOmitOK(char *szLine, int nLineBufSize,
-		const char *szResponseFilter,
-		unsigned long ulDelay) {
+									  const char *szResponseFilter,
+									  unsigned long ulDelay)
+{
 	int nbLine = 0;
 	char *aLine[BG_LINE];
 	Countdown oCountdown(ulDelay);
@@ -1908,19 +2113,23 @@ int TYPE1SC::readATresponseLineOmitOK(char *szLine, int nLineBufSize,
 
 	memset(szLine, 0, nLineBufSize);
 
-	do {
-		if (_serial.available()) {
+	do
+	{
+		if (_serial.available())
+		{
 			String sStr;
 			sStr = _serial.readStringUntil('\n');
 			int nLen = sStr.length();
 
-			if (nLen > 1) {
+			if (nLen > 1)
+			{
 				aLine[nbLine] = (char *)malloc(nLen + 1);
 				sStr.toCharArray(aLine[nbLine], nLen);
 				aLine[nbLine][nLen] = 0;
 
 				pszSubstr = strstr(aLine[nbLine], szResponseFilter);
-				if (pszSubstr != NULL) {
+				if (pszSubstr != NULL)
+				{
 					SWIR_TRACE(F("Found OK"));
 					pszSubstr += strlen(szResponseFilter);
 					while (isSpace(*pszSubstr)) // trim heading
@@ -1947,7 +2156,8 @@ int TYPE1SC::readATresponseLineOmitOK(char *szLine, int nLineBufSize,
 				nbLine++;
 			}
 		}
-		if (nbLine >= BG_LINE) {
+		if (nbLine >= BG_LINE)
+		{
 			break;
 		}
 	} while (!oCountdown.expired());
@@ -1955,7 +2165,8 @@ int TYPE1SC::readATresponseLineOmitOK(char *szLine, int nLineBufSize,
 	SWIR_TRACE(F("readATresponseLine: %d line(s)\n"), nbLine);
 
 	int i;
-	for (i = 0; i < nbLine; i++) {
+	for (i = 0; i < nbLine; i++)
+	{
 		SWIR_TRACE(F("line[%d]: %s\n"), i, aLine[i]);
 		free(aLine[i]);
 	}
@@ -1964,8 +2175,9 @@ int TYPE1SC::readATresponseLineOmitOK(char *szLine, int nLineBufSize,
 }
 
 int TYPE1SC::readATresponseHTTPLine(char *szLine, int nLineBufSize,
-		const char *szResponseFilter,
-		unsigned long ulDelay) {
+									const char *szResponseFilter,
+									unsigned long ulDelay)
+{
 	int nbLine = 0;
 	char *aLine[BG_LINE];
 	Countdown oCountdown(ulDelay);
@@ -1973,19 +2185,23 @@ int TYPE1SC::readATresponseHTTPLine(char *szLine, int nLineBufSize,
 
 	memset(szLine, 0, nLineBufSize);
 
-	do {
-		if (_serial.available()) {
+	do
+	{
+		if (_serial.available())
+		{
 			String sStr;
 			sStr = _serial.readStringUntil('\n');
 			int nLen = sStr.length();
 
-			if (nLen > 1) {
+			if (nLen > 1)
+			{
 				aLine[nbLine] = (char *)malloc(nLen + 1);
 				sStr.toCharArray(aLine[nbLine], nLen);
 				aLine[nbLine][nLen] = 0;
 
 				pszSubstr = strstr(aLine[nbLine], "https://httpbin.org/get");
-				if (pszSubstr != NULL) {
+				if (pszSubstr != NULL)
+				{
 					nbLine++;
 					SWIR_TRACE(F("Found url OK"));
 					break;
@@ -1994,7 +2210,8 @@ int TYPE1SC::readATresponseHTTPLine(char *szLine, int nLineBufSize,
 				nbLine++;
 			}
 		}
-		if (nbLine >= BG_LINE) {
+		if (nbLine >= BG_LINE)
+		{
 			break;
 		}
 	} while (!oCountdown.expired());
@@ -2005,19 +2222,24 @@ int TYPE1SC::readATresponseHTTPLine(char *szLine, int nLineBufSize,
 
 	int nRet = 3;
 
-	for (i = 0; i < nbLine; i++) {
+	for (i = 0; i < nbLine; i++)
+	{
 		SWIR_TRACE(F("line[%d]: %s\n"), i, aLine[i]);
 
-		if (szResponseFilter == NULL) {
+		if (szResponseFilter == NULL)
+		{
 			// Not filtering response
 			strcpy(szLine, aLine[i]);
 			nRet = 0;
-		} else if (strlen(szResponseFilter) > 0) {
+		}
+		else if (strlen(szResponseFilter) > 0)
+		{
 			// Filtering Response
 			char *pszSubstr = NULL;
 
 			pszSubstr = strstr(aLine[i], szResponseFilter);
-			if (pszSubstr != NULL) {
+			if (pszSubstr != NULL)
+			{
 				pszSubstr += strlen(szResponseFilter);
 				while (isSpace(*pszSubstr)) // trim heading
 				{
@@ -2038,7 +2260,9 @@ int TYPE1SC::readATresponseHTTPLine(char *szLine, int nLineBufSize,
 				strcpy(szLine, pszSubstr);
 				nRet = 0;
 			}
-		} else {
+		}
+		else
+		{
 			// Not filtering response
 			strcpy(szLine, aLine[i]);
 			nRet = 0;
@@ -2051,8 +2275,9 @@ int TYPE1SC::readATresponseHTTPLine(char *szLine, int nLineBufSize,
 }
 
 int TYPE1SC::readATresponseLine(char *szLine, int nLineBufSize,
-		const char *szResponseFilter,
-		unsigned long ulDelay) {
+								const char *szResponseFilter,
+								unsigned long ulDelay)
+{
 	int nbLine = 0;
 	char *aLine[BG_LINE];
 	Countdown oCountdown(ulDelay);
@@ -2060,19 +2285,23 @@ int TYPE1SC::readATresponseLine(char *szLine, int nLineBufSize,
 
 	memset(szLine, 0, nLineBufSize);
 
-	do {
-		if (_serial.available()) {
+	do
+	{
+		if (_serial.available())
+		{
 			String sStr;
 			sStr = _serial.readStringUntil('\n');
 			int nLen = sStr.length();
 
-			if (nLen > 1) {
+			if (nLen > 1)
+			{
 				aLine[nbLine] = (char *)malloc(nLen + 1);
 				sStr.toCharArray(aLine[nbLine], nLen);
 				aLine[nbLine][nLen] = 0;
 
 				pszSubstr = strstr(aLine[nbLine], "OK");
-				if (pszSubstr != NULL) {
+				if (pszSubstr != NULL)
+				{
 					nbLine++;
 					SWIR_TRACE(F("Found OK"));
 					break;
@@ -2081,7 +2310,8 @@ int TYPE1SC::readATresponseLine(char *szLine, int nLineBufSize,
 				nbLine++;
 			}
 		}
-		if (nbLine >= BG_LINE) {
+		if (nbLine >= BG_LINE)
+		{
 			break;
 		}
 	} while (!oCountdown.expired());
@@ -2092,19 +2322,24 @@ int TYPE1SC::readATresponseLine(char *szLine, int nLineBufSize,
 
 	int nRet = 3;
 
-	for (i = 0; i < nbLine; i++) {
+	for (i = 0; i < nbLine; i++)
+	{
 		SWIR_TRACE(F("line[%d]: %s\n"), i, aLine[i]);
 
-		if (szResponseFilter == NULL) {
+		if (szResponseFilter == NULL)
+		{
 			// Not filtering response
 			strcpy(szLine, aLine[i]);
 			nRet = 0;
-		} else if (strlen(szResponseFilter) > 0) {
+		}
+		else if (strlen(szResponseFilter) > 0)
+		{
 			// Filtering Response
 			char *pszSubstr = NULL;
 
 			pszSubstr = strstr(aLine[i], szResponseFilter);
-			if (pszSubstr != NULL) {
+			if (pszSubstr != NULL)
+			{
 				pszSubstr += strlen(szResponseFilter);
 				while (isSpace(*pszSubstr)) // trim heading
 				{
@@ -2125,7 +2360,9 @@ int TYPE1SC::readATresponseLine(char *szLine, int nLineBufSize,
 				strcpy(szLine, pszSubstr);
 				nRet = 0;
 			}
-		} else {
+		}
+		else
+		{
 			// Not filtering response
 			strcpy(szLine, aLine[i]);
 			nRet = 0;
@@ -2138,26 +2375,31 @@ int TYPE1SC::readATresponseLine(char *szLine, int nLineBufSize,
 }
 
 int TYPE1SC::readATresponseLine(char *aLine[], int nMaxLine,
-		unsigned long ulDelay) {
+								unsigned long ulDelay)
+{
 	int nbLine = 0;
 	Countdown oCountDown(ulDelay);
 	char *pszSubstr = NULL;
 	int i;
 
-	do {
-		if (_serial.available()) {
+	do
+	{
+		if (_serial.available())
+		{
 			String sStr;
 			sStr = _serial.readStringUntil('\n');
 
 			int nLen = sStr.length();
-			if (nLen > 1) {
+			if (nLen > 1)
+			{
 				aLine[nbLine] = (char *)malloc(nLen + 1);
 				sStr.toCharArray(aLine[nbLine], nLen);
 
 				aLine[nbLine][nLen] = 0;
 
 				pszSubstr = strstr(aLine[nbLine], "OK");
-				if (pszSubstr != NULL) {
+				if (pszSubstr != NULL)
+				{
 					nbLine++;
 					SWIR_TRACE(F("Found OK"));
 					break;
@@ -2166,7 +2408,8 @@ int TYPE1SC::readATresponseLine(char *aLine[], int nMaxLine,
 				nbLine++;
 			}
 		}
-		if (nbLine >= nMaxLine) {
+		if (nbLine >= nMaxLine)
+		{
 			break;
 		}
 	} while (!oCountDown.expired());
@@ -2176,14 +2419,17 @@ int TYPE1SC::readATresponseLine(char *aLine[], int nMaxLine,
 	return nbLine;
 }
 
-void TYPE1SC::TYPE1SC_serial_clearbuf() {
+void TYPE1SC::TYPE1SC_serial_clearbuf()
+{
 
-	while (_serial.available()) {
+	while (_serial.available())
+	{
 		_serial.read();
 	}
 }
 
-void TYPE1SC::TYPE1SC_trace(const __FlashStringHelper *szTrace, ...) {
+void TYPE1SC::TYPE1SC_trace(const __FlashStringHelper *szTrace, ...)
+{
 #ifdef __TYPE_1SC_DEBUG
 	char szBuf[TRACE_BUFFER_SIZE];
 	va_list args;
@@ -2191,10 +2437,10 @@ void TYPE1SC::TYPE1SC_trace(const __FlashStringHelper *szTrace, ...) {
 	va_start(args, szTrace);
 #ifdef __AVR__
 	vsnprintf_P(szBuf, sizeof(szBuf), (const char *)szTrace,
-			args); // program for AVR
+				args); // program for AVR
 #else
 	vsnprintf(szBuf, sizeof(szBuf), (const char *)szTrace,
-			args); // for the rest of the world
+			  args); // for the rest of the world
 #endif
 	va_end(args);
 
@@ -2202,7 +2448,8 @@ void TYPE1SC::TYPE1SC_trace(const __FlashStringHelper *szTrace, ...) {
 #endif
 }
 
-int TYPE1SC::disablePSM() {
+int TYPE1SC::disablePSM()
+{
 	char szCmd[16];
 	char resBuffer[16];
 	int ret;
@@ -2218,7 +2465,8 @@ int TYPE1SC::disablePSM() {
 	return ret;
 }
 
-void TYPE1SC::reset() {
+void TYPE1SC::reset()
+{
 	char szCmd[16];
 	char resBuffer[16];
 
@@ -2229,21 +2477,22 @@ void TYPE1SC::reset() {
 	sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 3000);
 }
 
-int TYPE1SC::chkSIM() {
+int TYPE1SC::chkSIM()
+{
 	char szCmd[16];
 	char resBuffer[128];
 	int ret;
 
 	TYPE1SC_serial_clearbuf();
 
-	sprintf(szCmd,"AT%%STATUS=\"USIM\"");
+	sprintf(szCmd, "AT%%STATUS=\"USIM\"");
 
 	ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "USIM: ", 5000);
 
-	if(!ret){
-		ret = strncmp( resBuffer,"REAL USIM",strlen("REAL USIM") );
+	if (!ret)
+	{
+		ret = strncmp(resBuffer, "REAL USIM", strlen("REAL USIM"));
 	}
 
 	return ret;
 }
-
