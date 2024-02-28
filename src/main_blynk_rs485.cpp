@@ -13,9 +13,33 @@
 #include "TYPE1SC.h"
 
 #include "config_Blynk.h"
-
 #include <BlynkSimpleEsp32.h> // wifi header...
+
 #include <ModbusRTUMaster.h>
+
+#include <ESPAsyncWebServer.h>
+#include <AsyncTCP.h>
+
+// Create AsyncWebServer object on port 80
+AsyncWebServer server(80);
+
+#include "SPIFFS.h" // Fast
+
+// 매개 변수 수정 예정 - device토큰: config_Blynk.h 없애겠네ㄷ + TCP GET요청부분도 고쳐야될듯
+// Search for parameter in HTTP POST request
+const char *PARAM_INPUT_1 = "camId";
+const char *PARAM_INPUT_2 = "slaveMAC";
+const char *PARAM_INPUT_3 = "capturePeriod";
+
+// Variables to save values from HTML form
+String camId;
+String slaveMAC;
+String capturePeriod; // Interval at which to take photo
+
+// File paths to save input values permanently
+const char *camIdPath = "/camId.txt";
+const char *slaveMACPath = "/slaveMAC.txt";
+const char *capturePeriodPath = "/capturePeriod.txt";
 
 // Use WIFI? *************************************************
 // #define USE_WIFI // To disable, Use HTTP Request
@@ -103,14 +127,22 @@ const uint8_t txPin = 32; // TX-DI
 const uint8_t dePin = 25; // DE+RE
 
 ModbusRTUMaster modbus(Serial1, dePin); // serial port, driver enable pin for rs-485 (optional)
-void getSensorData();
-void sendSensorData();
-
 #if defined(EC_SENSING_MODE)
 uint16_t holdingRegisters[3] = {0xFF, 0xFF, 0xFF};
 #else
 uint16_t holdingRegisters[2] = {0xFF, 0xFF};
 #endif
+
+// 메소드 선언부 *******************************************************************************************
+void getSensorData();
+void sendSensorData();
+
+void initSPIFFS();                                                 // Initialize SPIFFS
+String readFile(fs::FS &fs, const char *path);                     // Read File from SPIFFS
+void writeFile(fs::FS &fs, const char *path, const char *message); // Write file to SPIFFS
+bool isCamConfigDefined();                                         // Is Cam Configuration Defiend?
+
+bool allowsLoop = false; // loop() DO or NOT
 
 void setup()
 {
@@ -139,6 +171,136 @@ void setup()
     // put your setup code here, to run once:
     M1Serial.begin(SERIAL_BR);
     DebugSerial.begin(SERIAL_BR);
+
+    //****************************************************************************************************************************************
+
+    // // AP모드 진입(cam config reset): softAP() 메소드
+    // if (!isCamConfigDefined())
+    // {
+    //     // Connect to Wi-Fi network with SSID and password
+    //     Serial.println("Setting AP (Access Point)");
+    //     // NULL sets an open Access Point
+    //     WiFi.softAP("ESP-WIFI-MANAGER Master0", NULL);
+
+    //     IPAddress IP = WiFi.softAPIP(); // Software enabled Access Point : 가상 라우터, 가상의 액세스 포인트
+    //     Serial.print("AP IP address: ");
+    //     Serial.println(IP);
+
+    //     // Print Chip Info.
+    //     Serial.printf("Total Heap Size = %d\n\n", ESP.getHeapSize());
+
+    //     Serial.printf("Curr freeHeap Size4: %.1f%%\n", getCurrFreeHeapRatio()); // DEBUGGING
+
+    //     // Web Server Root URL
+    //     // GET방식
+    //     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+    //               { request->send(SPIFFS, "/wifimanager.html", "text/html"); });
+
+    //     server.serveStatic("/", SPIFFS, "/");
+    //     // POST방식
+    //     server.on("/", HTTP_POST, [](AsyncWebServerRequest *request)
+    //               {
+    //   int params = request->params();
+    //   for(int i=0;i<params;i++){
+    //     AsyncWebParameter* p = request->getParam(i);
+    //     if(p->isPost()){
+    //       // HTTP POST camId value
+    //       if (p->name() == PARAM_INPUT_1) {
+    //         camId = p->value().c_str();
+    //         Serial.print("Cam ID set to: ");
+    //         Serial.println(camId);
+    //         // Write file to save value
+    //         writeFile(SPIFFS, camIdPath, camId.c_str());
+    //       }
+    //       // HTTP POST slaveMAC value
+    //       if (p->name() == PARAM_INPUT_2) {
+    //         slaveMAC = p->value().c_str();
+    //         Serial.print("Dest. MAC set to: ");
+    //         Serial.println(slaveMAC);
+    //         // Write file to save value
+    //         writeFile(SPIFFS, slaveMACPath, slaveMAC.c_str());
+    //       }
+    //       // HTTP POST capturePeriod value
+    //       if (p->name() == PARAM_INPUT_3) {
+    //         capturePeriod = p->value().c_str();
+    //         Serial.print("Capture Period set to: ");
+    //         Serial.println(capturePeriod);
+    //         // Write file to save value
+    //         writeFile(SPIFFS, capturePeriodPath, capturePeriod.c_str());
+    //       }
+
+    //       Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
+    //     }
+    //   }
+    //   // ESP가 양식 세부 정보를 수신했음을 알 수 있도록 일부 텍스트가 포함된 응답을 send
+    //   request->send(200, "text/plain", "Done. ESP will restart, Take photo periodcally, and then Send it to Slave Device: " + slaveMAC);
+    //   Serial.printf("Curr freeHeap Size5: %.1f%%\n", getCurrFreeHeapRatio()); // DEBUGGING
+    //   delay(3000);
+    //   ESP.restart(); });
+    //     server.begin();
+    //     Serial.printf("Curr freeHeap Size6: %.1f%%\n", getCurrFreeHeapRatio()); // DEBUGGING
+    // }
+    // else
+    // {
+    //     Serial.println("CAMERA MASTER STARTED"); // tarted : 시작되다; 자동사인듯?
+    //     initCamera();                             // init camera
+    //     // initSD();                                 // init sd
+
+    //     Serial.printf("Curr freeHeap Size7: %.1f%%\n", getCurrFreeHeapRatio()); // DEBUGGING
+
+    //     /*
+    //     // Not use
+
+    //     // init onboad led
+    //     pinMode(ONBOADLED, OUTPUT);
+    //     digitalWrite(ONBOADLED, LOW);
+
+    //     // we now test to see if we got serial communication
+    //     unsigned long testForUart = millis();
+    //     Serial.print("WAIT UART");
+    //     while (testForUart + UARTWAITHANDSHACK > millis() && !Serial.available())
+    //     {
+    //       Serial.print(".");
+    //       delay(50);
+    //     }
+
+    //     if (Serial.available())
+    //     {
+    //       Serial.println("We are using Serial!!");
+    //       while (Serial.available())
+    //       {
+    //         Serial.println(Serial.read());
+    //       }
+    //       // useUartRX = 1;
+    //     }
+    //     */
+    //     /*
+    //         if (1) //! useUartRX
+    //         {*/
+    //     // set RX as pullup for safety
+    //     // pinMode(RXPIN, INPUT_PULLUP);
+    //     // Serial.println("We are using the button");
+
+    //     // Set device in STA mode to begin with
+    //     WiFi.mode(WIFI_STA);
+    //     // This is the mac address of the Master in Station Mode
+    //     Serial.print("STA MAC: ");
+    //     Serial.println(WiFi.macAddress());
+
+    //     Serial.printf("Curr freeHeap Size8: %.1f%%\n", getCurrFreeHeapRatio()); // DEBUGGING
+
+    //     // Init ESPNow with a fallback logic
+    //     InitESPNow();
+    //     Serial.printf("Curr freeHeap Size9: %.1f%%\n", getCurrFreeHeapRatio()); // DEBUGGING
+    //     // Once ESPNow is successfully Init, we will register for Send CB to
+    //     // get the status of Trasnmitted packet
+    //     esp_now_register_send_cb(OnDataSent);
+    //     /*}*/
+    //     allowsLoop = true;
+    //     Serial.printf("Curr freeHeap Size10: %.1f%%\n", getCurrFreeHeapRatio()); // DEBUGGING
+    // }
+
+    //****************************************************************************************************************************************
 
     DebugSerial.println("TYPE1SC Module Start!!!");
 #if defined(USE_LCD)
@@ -436,3 +598,65 @@ void sendSensorData()
     // online forever TCP Socket; auto close if disconnect
 #endif
 }
+
+// Initialize SPIFFS
+void initSPIFFS()
+{
+    if (!SPIFFS.begin(true))
+    {
+        Serial.println("An error has occurred while mounting SPIFFS");
+    }
+    Serial.println("SPIFFS mounted successfully");
+}
+
+// Read File from SPIFFS
+String readFile(fs::FS &fs, const char *path)
+{
+    Serial.printf("Reading file: %s\r\n", path);
+
+    File file = fs.open(path);
+    if (!file || file.isDirectory())
+    {
+        Serial.println("- failed to open file for reading");
+        return String();
+    }
+
+    String fileContent;
+    while (file.available())
+    {
+        fileContent = file.readStringUntil('\n');
+        break;
+    }
+    return fileContent;
+}
+
+// Write file to SPIFFS
+void writeFile(fs::FS &fs, const char *path, const char *message)
+{
+    Serial.printf("Writing file: %s\r\n", path);
+
+    File file = fs.open(path, FILE_WRITE);
+    if (!file)
+    {
+        Serial.println("- failed to open file for writing");
+        return;
+    }
+    if (file.print(message))
+    {
+        Serial.println("- file written");
+    }
+    else
+    {
+        Serial.println("- write failed");
+    }
+}
+
+// bool isCamConfigDefined()
+// {
+//     if (camId == "" || slaveMAC == "" || capturePeriod == "")
+//     {
+//         Serial.println("Undefined Cam ID or slaveMac or Capture Period.");
+//         return false;
+//     }
+//     return true;
+// }
