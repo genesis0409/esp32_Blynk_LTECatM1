@@ -9,6 +9,10 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
+#include "soc/soc.h"          // Disable brownout problems
+#include "soc/rtc_cntl_reg.h" // Disable brownout problems
+#include "driver/rtc_io.h"
+
 #include <U8x8lib.h>
 #include "TYPE1SC.h"
 
@@ -107,7 +111,7 @@ BlynkTimer timer; // 함수 주기적 실행 위한 타이머
 #define SLAVE_ID 1
 #define START_ADDRESS 0
 #define QUANTITY 2
-#define SCAN_RATE 10000
+#define SCAN_RATE 600000 // 60만: 10분
 
 unsigned long currentMillis = 0;
 unsigned long previousMillis = 0; // Stores last time using Reference time
@@ -143,9 +147,11 @@ void writeFile(fs::FS &fs, const char *path, const char *message); // Write file
 bool isCamConfigDefined();                                         // Is Cam Configuration Defiend?
 
 bool allowsLoop = false; // loop() DO or NOT
+bool firstRun = true;
 
 void setup()
 {
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // disable brownout detector
     /* CATM1 Modem PowerUp sequence */
     pinMode(PWR_PIN, OUTPUT);
     pinMode(RST_PIN, OUTPUT);
@@ -450,6 +456,11 @@ void loop()
     Blynk.run();
     timer.run();
 #else
+    if (firstRun)
+    {
+        sendSensorData();
+        firstRun = false;
+    }
     currentMillis = millis();
     if (currentMillis - previousMillis >= SCAN_RATE)
     {
