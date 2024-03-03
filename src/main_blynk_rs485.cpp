@@ -393,33 +393,7 @@ void setup()
         u8x8log.print("TCP Socket Create!!!\n");
 #endif
     }
-INFO:
 
-    /* 2 :TCP Socket Activation */
-    if (TYPE1SC.socketActivate() == 0)
-    {
-        DebugSerial.println("TCP Socket Activation!!!");
-#if defined(USE_LCD)
-        u8x8log.print("TCP Socket Activation!!!\n");
-#endif
-    }
-
-    if (TYPE1SC.socketInfo(sckInfo, sizeof(sckInfo)) == 0)
-    {
-        DebugSerial.print("Socket Info : ");
-        DebugSerial.println(sckInfo);
-#if defined(USE_LCD)
-        u8x8log.print("Socket Info : ");
-        u8x8log.print(sckInfo);
-        u8x8log.print("\n");
-#endif
-
-        if (strcmp(sckInfo, "ACTIVATED"))
-        {
-            delay(3000);
-            goto INFO;
-        }
-    }
 
     // /* 5 :TCP Socket DeActivation */
     // if (TYPE1SC.socketDeActivate() == 0)
@@ -542,6 +516,35 @@ void sendSensorData()
     Blynk.virtualWrite(V1, soil_m);
     Blynk.virtualWrite(V2, ec);
 #else
+
+INFO:
+
+    /* 2 :TCP Socket Activation */
+    if (TYPE1SC.socketActivate() == 0)
+    {
+        DebugSerial.println("TCP Socket Activation!!!");
+#if defined(USE_LCD)
+        u8x8log.print("TCP Socket Activation!!!\n");
+#endif
+    }
+
+    if (TYPE1SC.socketInfo(sckInfo, sizeof(sckInfo)) == 0)
+    {
+        DebugSerial.print("Socket Info : ");
+        DebugSerial.println(sckInfo);
+#if defined(USE_LCD)
+        u8x8log.print("Socket Info : ");
+        u8x8log.print(sckInfo);
+        u8x8log.print("\n");
+#endif
+
+        if (strcmp(sckInfo, "ACTIVATED"))
+        {
+            delay(3000);
+            goto INFO;
+        }
+    }
+
     /* 3 :TCP Socket Send Data */
     String data = "GET /external/api/batch/update";
     data += "?token=" BLYNK_AUTH_TOKEN "&";
