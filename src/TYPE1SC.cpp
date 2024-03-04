@@ -1681,7 +1681,7 @@ int TYPE1SC::socketActivate()
 	memset(resBuffer, 0, sizeof(resBuffer));
 
 	sprintf(szCmd, "AT%%SOCKETCMD=\"ACTIVATE\",%d", _nSocket);
-	ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 60000);
+	ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 20000);
 
 	return ret;
 }
