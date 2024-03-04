@@ -443,42 +443,64 @@ void extAntenna()
 void getSensorData()
 {
 #if defined(EC_SENSING_MODE)
-    if (modbus.readHoldingRegisters(1, 0, holdingRegisters, 3))
+    while (true)
     {
-        t = holdingRegisters[0] / 10.0;
-        soil_m = holdingRegisters[1] / 10.0;
-        ec = holdingRegisters[2] / 1000.0;
-        Serial.printf("RK520-02 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [EC]: %.2f\n", messageID, t, soil_m, ec);
-    }
-    else
-    {
+        if (modbus.readHoldingRegisters(1, 0, holdingRegisters, 3))
+        {
+            t = holdingRegisters[0] / 10.0;
+            soil_m = holdingRegisters[1] / 10.0;
+            ec = holdingRegisters[2] / 1000.0;
+            Serial.printf("RK520-02 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [EC]: %.2f\n", messageID, t, soil_m, ec);
 
-        Serial.println("[MODBUS] Cannot Read Holding Resisters...");
-        if (modbus.getTimeoutFlag())
-        {
-            Serial.println("TimeOut");
+            break;
         }
-        if (modbus.getExceptionResponse() > 0)
+        else
         {
-            Serial.print("getExceptionResponse: ");
-            Serial.println(modbus.getExceptionResponse());
+            Serial.println("[MODBUS] Cannot Read Holding Resisters...");
+            if (modbus.getTimeoutFlag())
+            {
+                Serial.println("TimeOut");
+            }
+            if (modbus.getExceptionResponse() > 0)
+            {
+                Serial.print("getExceptionResponse: ");
+                Serial.println(modbus.getExceptionResponse());
+            }
+
+            delay(5000);
         }
     }
 
 #else
-    if (modbus.readHoldingRegisters(1, 0, holdingRegisters, 2))
+    while (true)
     {
-        t = holdingRegisters[0] / 10.0;
-        h = holdingRegisters[1] / 10.0;
-        Serial.printf("TZ-THT02 [messageID]: %d | [TEMP]: %.1f, [HUMI]: %.1f\n", messageID, t, h);
+        if (modbus.readHoldingRegisters(1, 0, holdingRegisters, 2))
+        {
+            t = holdingRegisters[0] / 10.0;
+            h = holdingRegisters[1] / 10.0;
+            Serial.printf("TZ-THT02 [messageID]: %d | [TEMP]: %.1f, [HUMI]: %.1f\n", messageID, t, h);
 
-        // Sent to Blynk
-        Blynk.virtualWrite(V0, t);
-        Blynk.virtualWrite(V1, h);
-    }
-    else
-    {
-        Serial.println("Cannot Read Holding Resisters...");
+            // Sent to Blynk
+            Blynk.virtualWrite(V0, t);
+            Blynk.virtualWrite(V1, h);
+
+            break;
+        }
+        else
+        {
+            Serial.println("[MODBUS] Cannot Read Holding Resisters...");
+            if (modbus.getTimeoutFlag())
+            {
+                Serial.println("TimeOut");
+            }
+            if (modbus.getExceptionResponse() > 0)
+            {
+                Serial.print("getExceptionResponse: ");
+                Serial.println(modbus.getExceptionResponse());
+            }
+
+            delay(5000);
+        }
     }
 
 #endif
