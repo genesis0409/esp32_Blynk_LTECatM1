@@ -400,45 +400,15 @@ void setup()
 #endif
     }
 
-
-    // /* 5 :TCP Socket DeActivation */
-    // if (TYPE1SC.socketDeActivate() == 0)
-    // {
-    //     DebugSerial.println("TCP Socket DeActivation!!!");
-    //     u8x8log.print("TCP Socket DeActivation!!!\n");
-    // }
-
-    // if (TYPE1SC.socketInfo(sckInfo, sizeof(sckInfo)) == 0)
-    // {
-    //     DebugSerial.print("Socket Info : ");
-    //     DebugSerial.println(sckInfo);
+    //     /* 7 :Detach Network */
+    //     if (TYPE1SC.setCFUN(0) == 0)
+    //     {
+    //         DebugSerial.println("detach Network!!!");
     // #if defined(USE_LCD)
-    //         u8x8log.print("Socket Info : ");
-    //         u8x8log.print(sckInfo);
-    //         u8x8log.print("\n");
+    //         u8x8log.print("detach Network!!!\n");
     // #endif
-
-    // }
-
-    // /* 6 :TCP Socket DeActivation */
-    // if (TYPE1SC.socketClose() == 0)
-    // {
-    //     DebugSerial.println("TCP Socket Close!!!");
-    // #if defined(USE_LCD)
-    //     u8x8log.print("TCP Socket Close!!!\n");
-    // #endif
-
-    // }
-
-    // /* 7 :Detach Network */
-    // if (TYPE1SC.setCFUN(0) == 0)
-    // {
-    //     DebugSerial.println("detach Network!!!");
-    // #if defined(USE_LCD)
-    //     u8x8log.print("detach Network!!!\n");
-    // #endif
-    // }
-    // delay(10000); // Detach Setup Time : 10sec
+    //     }
+    //     delay(10000); // Detach Setup Time : 10sec
 
 #endif
 
@@ -609,7 +579,34 @@ INFO:
         u8x8log.print("Recv Fail!!!\n");
 #endif
     }
-    // online forever TCP Socket; auto close if disconnect
+
+    /* 5 :TCP Socket DeActivation */
+    if (TYPE1SC.socketDeActivate() == 0)
+    {
+        DebugSerial.println("TCP Socket DeActivation!!!");
+        u8x8log.print("TCP Socket DeActivation!!!\n");
+    }
+
+    if (TYPE1SC.socketInfo(sckInfo, sizeof(sckInfo)) == 0)
+    {
+        DebugSerial.print("Socket Info : ");
+        DebugSerial.println(sckInfo);
+#if defined(USE_LCD)
+        u8x8log.print("Socket Info : ");
+        u8x8log.print(sckInfo);
+        u8x8log.print("\n");
+#endif
+    }
+
+    /* 6 :TCP Socket DeActivation */
+    if (TYPE1SC.socketClose() == 0)
+    {
+        DebugSerial.println("TCP Socket Close!!!");
+#if defined(USE_LCD)
+        u8x8log.print("TCP Socket Close!!!\n");
+#endif
+    }
+
 #endif
 }
 
