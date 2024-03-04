@@ -5,7 +5,7 @@
  * 3. RS485: EC_SENSING_MODE
  */
 
-// Arduino setting *******************************************
+// Arduino setting **************************************************************************************
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
@@ -45,17 +45,17 @@ const char *camIdPath = "/camId.txt";
 const char *slaveMACPath = "/slaveMAC.txt";
 const char *capturePeriodPath = "/capturePeriod.txt";
 
-// Use WIFI? *************************************************
+// Use WIFI? ********************************************************************************************
 // #define USE_WIFI // To disable, Use HTTP Request
 
-// Use LCD? **************************************************
+// Use LCD? *********************************************************************************************
 // #define USE_LCD
 
-// Soil Moisture + Temp + EC *********************************
+// Soil Moisture + Temp + EC ****************************************************************************
 #define EC_SENSING_MODE // To disable, change to annotation.
-// ***********************************************************
+// ******************************************************************************************************
 
-// TYPE1SC setting *******************************************
+// TYPE1SC setting **************************************************************************************
 #define SERIAL_BR 115200
 
 #define PWR_PIN 5
@@ -90,7 +90,7 @@ int recvSize;
 #define EXT_ANT_ON 1
 void extAntenna();
 
-// Blynk setting *********************************************
+// Blynk setting ****************************************************************************************
 char auth[] = BLYNK_AUTH_TOKEN;
 BlynkTimer timer; // 함수 주기적 실행 위한 타이머
 
@@ -107,7 +107,7 @@ BlynkTimer timer; // 함수 주기적 실행 위한 타이머
  * Function Code: 0x0F; writeMultipleCoils(): modbus.writeMultipleCoils(slaveId, startingAddress, buffer, quantity); 여러 비트 쓰기; 다수 코일 ON/OFF 지정
  * Function Code: 0x10; writeMultipleHoldingRegisters(): modbus.writeMultipleHoldingRegisters(slaveId, startingAddress, buffer, quantity); 여러 워드 쓰기; 연속 레지스터 블록 쓰기
 */
-// RS485 setting *********************************************
+// RS485 setting ****************************************************************************************
 #define SLAVE_ID 1
 #define START_ADDRESS 0
 #define QUANTITY 2
