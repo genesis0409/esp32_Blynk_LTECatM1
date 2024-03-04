@@ -388,18 +388,6 @@ void setup()
         delay(2000);
     }
 
-    // Use TCP Socket
-    /********************************/
-
-    /* 1 :TCP Socket Create ( 0:UDP, 1:TCP ) */
-    if (TYPE1SC.socketCreate(1, IPAddr, _PORT) == 0)
-    {
-        DebugSerial.println("TCP Socket Create!!!");
-#if defined(USE_LCD)
-        u8x8log.print("TCP Socket Create!!!\n");
-#endif
-    }
-
     //     /* 7 :Detach Network */
     //     if (TYPE1SC.setCFUN(0) == 0)
     //     {
@@ -431,6 +419,7 @@ void loop()
         sendSensorData();
         firstRun = false;
     }
+
     currentMillis = millis();
     if (currentMillis - previousMillis >= SCAN_RATE)
     {
@@ -463,7 +452,17 @@ void getSensorData()
     }
     else
     {
-        Serial.println("Cannot Read Holding Resisters...");
+
+        Serial.println("[MODBUS] Cannot Read Holding Resisters...");
+        if (modbus.getTimeoutFlag())
+        {
+            Serial.println("TimeOut");
+        }
+        if (modbus.getExceptionResponse() > 0)
+        {
+            Serial.print("getExceptionResponse: ");
+            Serial.println(modbus.getExceptionResponse());
+        }
     }
 
 #else
@@ -497,6 +496,18 @@ void sendSensorData()
     Blynk.virtualWrite(V1, soil_m);
     Blynk.virtualWrite(V2, ec);
 #else
+
+    // Use TCP Socket
+    /********************************/
+
+    /* 1 :TCP Socket Create ( 0:UDP, 1:TCP ) */
+    if (TYPE1SC.socketCreate(1, IPAddr, _PORT) == 0)
+    {
+        DebugSerial.println("TCP Socket Create!!!");
+#if defined(USE_LCD)
+        u8x8log.print("TCP Socket Create!!!\n");
+#endif
+    }
 
 INFO:
 
@@ -584,7 +595,9 @@ INFO:
     if (TYPE1SC.socketDeActivate() == 0)
     {
         DebugSerial.println("TCP Socket DeActivation!!!");
+#if defined(USE_LCD)
         u8x8log.print("TCP Socket DeActivation!!!\n");
+#endif
     }
 
     if (TYPE1SC.socketInfo(sckInfo, sizeof(sckInfo)) == 0)
@@ -670,4 +683,62 @@ void writeFile(fs::FS &fs, const char *path, const char *message)
 //         return false;
 //     }
 //     return true;
+// }
+
+// void modbusWork(void *para)
+// {
+//     char buff[50];
+
+//     while (true)
+//     {
+//         /* code */
+//         bool res = modbus.readHoldingRegisters(1, 0, holdingRegisters, 2);
+//         if (res)
+//         {
+//             Serial.println("modsucces");
+//             temper = (float)(holdingRegisters[0] / 10);
+//             humi = (float)(holdingRegisters[1] / 10.0f);
+//             Serial.print("Temper:");
+//             Serial.print(temper);
+//             Serial.print("Humi:");
+//             Serial.println(humi);
+
+//             int gval = map(temper, -30, 120, -30, 220);
+//             if (gval < 0)
+//                 gval = 350 + gval;
+//             myNex.writeNum("z0.val", gval);
+
+//             int gval2 = map(humi, 0, 100, -30, 220);
+//             if (gval2 < 0)
+//                 gval2 = 350 + gval2;
+//             myNex.writeNum("z1.val", gval2);
+
+//             myNex.writeStr("t0.txt", String(temper));
+//             myNex.writeStr("t3.txt", String(humi));
+
+//             sprintf(buff, "&%3.1f&%3.1f&", temper, humi);
+//             Serial.println(buff);
+//             Udp.beginPacket(IP_Remote, 11000);
+//             Udp.write((const uint8_t *)buff, 50);
+//             Udp.endPacket();
+//         }
+//         else
+//         {
+//             Serial.println("modfail");
+//             if (modbus.getTimeoutFlag())
+//             {
+//                 Serial.println("TimeOut");
+//             }
+//             if (modbus.getExceptionResponse() > 0)
+//             {
+//                 Serial.println(modbus.getExceptionResponse());
+//             }
+//         }
+
+//         Count = random(-30, 120);
+//         myNex.writeStr("t2.txt", String(Count));
+//         Serial.println("Count=" + String(Count));
+
+//         delay(5000);
+//     }
 // }
