@@ -87,7 +87,7 @@ int recvSize;
 /* EXT_ANT_ON 0 : Use an internal antenna.
  * EXT_ANT_ON 1 : Use an external antenna.
  */
-#define EXT_ANT_ON 1
+#define EXT_ANT_ON 0
 void extAntenna();
 
 // Blynk setting ****************************************************************************************
