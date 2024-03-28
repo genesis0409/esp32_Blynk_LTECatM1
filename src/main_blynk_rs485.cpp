@@ -676,16 +676,6 @@ void setup()
         delay(2000);
     }
 
-    //     /* 7 :Detach Network */
-    //     if (TYPE1SC.setCFUN(0) == 0)
-    //     {
-    //         DebugSerial.println("detach Network!!!");
-    // #if defined(USE_LCD)
-    //         u8x8log.print("detach Network!!!\n");
-    // #endif
-    //     }
-    //     delay(10000); // Detach Setup Time : 10sec
-
 #endif
 
     // RS485 Setup
@@ -693,6 +683,22 @@ void setup()
     modbus.begin(9600, SERIAL_8N1, rxPin, txPin); // 직렬 전송 설정 (baud, config, rxPin, txPin, invert)
                                                   // default config : SERIAL_8N1; { 데이터비트 8, 패리티 없음, 1 정지 비트}; E: 짝수 패리티, O: 홀수 패리티
                                                   // rxPin: 직렬 데이터 수신 핀; txPin: 직렬  데이터 전송 핀 (uint8_t)
+
+    sendSensorData();
+
+    /* 7 :Detach Network */
+    if (TYPE1SC.setCFUN(0) == 0)
+    {
+        DebugSerial.println("detach Network!!!");
+#if defined(USE_LCD)
+        u8x8log.print("detach Network!!!\n");
+#endif
+    }
+    delay(10000); // Detach Setup Time : 10sec
+
+    Serial.println("Going to sleep now");
+    esp_sleep_enable_timer_wakeup(600e6); // 10min; 1s = 1,000,000us
+    esp_deep_sleep_start();
 }
 
 void loop()
@@ -702,18 +708,18 @@ void loop()
     Blynk.run();
     timer.run();
 #else
-    if (firstRun)
-    {
-        sendSensorData();
-        firstRun = false;
-    }
+    // if (firstRun)
+    // {
+    //     sendSensorData();
+    //     firstRun = false;
+    // }
 
-    currentMillis = millis();
-    if (currentMillis - previousMillis >= SCAN_RATE)
-    {
-        previousMillis = currentMillis;
+    // currentMillis = millis();
+    // if (currentMillis - previousMillis >= SCAN_RATE)
+    // {
+    //     previousMillis = currentMillis;
 
-        sendSensorData();
-    }
+    //     sendSensorData();
+    // }
 #endif
 }
