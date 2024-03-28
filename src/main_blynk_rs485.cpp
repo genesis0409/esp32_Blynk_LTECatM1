@@ -68,21 +68,21 @@ const char *capturePeriodPath = "/capturePeriod.txt";
 
 String APN = "simplio.apn";
 
-TYPE1SC TYPE1SC(M1Serial, DebugSerial, PWR_PIN, RST_PIN, WAKEUP_PIN);
+RTC_DATA_ATTR TYPE1SC TYPE1SC(M1Serial, DebugSerial, PWR_PIN, RST_PIN, WAKEUP_PIN);
 #if defined(USE_LCD)
-U8X8_SSD1306_128X64_NONAME_HW_I2C u8x8(/* reset=*/U8X8_PIN_NONE);
+RTC_DATA_ATTR U8X8_SSD1306_128X64_NONAME_HW_I2C u8x8(/* reset=*/U8X8_PIN_NONE);
 #define U8LOG_WIDTH 16
 #define U8LOG_HEIGHT 8
-uint8_t u8log_buffer[U8LOG_WIDTH * U8LOG_HEIGHT];
-U8X8LOG u8x8log;
+RTC_DATA_ATTR uint8_t u8log_buffer[U8LOG_WIDTH * U8LOG_HEIGHT];
+RTC_DATA_ATTR U8X8LOG u8x8log;
 #endif
 
 /* TCP/IP, HTTP setting*/
-char IPAddr[32];
-int _PORT = BLYNK_DEFAULT_PORT;
-char sckInfo[128];
-char recvBuffer[700];
-int recvSize;
+RTC_DATA_ATTR char IPAddr[32];
+RTC_DATA_ATTR int _PORT = BLYNK_DEFAULT_PORT;
+RTC_DATA_ATTR char sckInfo[128];
+RTC_DATA_ATTR char recvBuffer[700];
+RTC_DATA_ATTR int recvSize;
 
 /* EXT_ANT_ON 0 : Use an internal antenna.
  * EXT_ANT_ON 1 : Use an external antenna.
@@ -91,8 +91,8 @@ int recvSize;
 void extAntenna();
 
 // Blynk setting ****************************************************************************************
-char auth[] = BLYNK_AUTH_TOKEN;
-BlynkTimer timer; // 함수 주기적 실행 위한 타이머
+RTC_DATA_ATTR char auth[] = BLYNK_AUTH_TOKEN;
+RTC_DATA_ATTR BlynkTimer timer; // 함수 주기적 실행 위한 타이머
 
 /*
  * https://github.com/CMB27/ModbusRTUMaster/tree/main
@@ -116,25 +116,25 @@ BlynkTimer timer; // 함수 주기적 실행 위한 타이머
 unsigned long currentMillis = 0;
 unsigned long previousMillis = 0; // Stores last time using Reference time
 
-unsigned int messageID = 0;
+RTC_DATA_ATTR unsigned int messageID = 0;
 #if defined(EC_SENSING_MODE)
-float t;
-float soil_m; // Soil Moisture
-float ec;     // 전기 전도도
+RTC_DATA_ATTR float t;
+RTC_DATA_ATTR float soil_m; // Soil Moisture
+RTC_DATA_ATTR float ec;     // 전기 전도도
 #else
-float t;
-float h;
+RTC_DATA_ATTR float t;
+RTC_DATA_ATTR float h;
 #endif
 
-const uint8_t rxPin = 33; // RX-RO
-const uint8_t txPin = 32; // TX-DI
-const uint8_t dePin = 25; // DE+RE
+RTC_DATA_ATTR const uint8_t rxPin = 33; // RX-RO
+RTC_DATA_ATTR const uint8_t txPin = 32; // TX-DI
+RTC_DATA_ATTR const uint8_t dePin = 25; // DE+RE
 
-ModbusRTUMaster modbus(Serial1, dePin); // serial port, driver enable pin for rs-485 (optional)
+RTC_DATA_ATTR ModbusRTUMaster modbus(Serial1, dePin); // serial port, driver enable pin for rs-485 (optional)
 #if defined(EC_SENSING_MODE)
-uint16_t holdingRegisters[3] = {0xFF, 0xFF, 0xFF};
+RTC_DATA_ATTR uint16_t holdingRegisters[3] = {0xFF, 0xFF, 0xFF};
 #else
-uint16_t holdingRegisters[2] = {0xFF, 0xFF};
+RTC_DATA_ATTR uint16_t holdingRegisters[2] = {0xFF, 0xFF};
 #endif
 
 // 메소드 선언부 *******************************************************************************************
@@ -146,289 +146,8 @@ String readFile(fs::FS &fs, const char *path);                     // Read File 
 void writeFile(fs::FS &fs, const char *path, const char *message); // Write file to SPIFFS
 bool isCamConfigDefined();                                         // Is Cam Configuration Defiend?
 
-bool allowsLoop = false; // loop() DO or NOT
-bool firstRun = true;
-
-void setup()
-{
-    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // disable brownout detector
-    /* CATM1 Modem PowerUp sequence */
-    pinMode(PWR_PIN, OUTPUT);
-    pinMode(RST_PIN, OUTPUT);
-    pinMode(WAKEUP_PIN, OUTPUT);
-
-    digitalWrite(PWR_PIN, HIGH);
-    digitalWrite(WAKEUP_PIN, HIGH);
-    digitalWrite(RST_PIN, LOW);
-    delay(100);
-    digitalWrite(RST_PIN, HIGH);
-    delay(2000);
-
-    /********************************/
-#if defined(USE_LCD)
-    u8x8.begin();
-    u8x8.setFont(u8x8_font_chroma48medium8_r);
-
-    u8x8log.begin(u8x8, U8LOG_WIDTH, U8LOG_HEIGHT, u8log_buffer);
-    u8x8log.setRedrawMode(
-        1); // 0: Update screen with newline, 1: Update screen for every char
-#endif
-
-    // put your setup code here, to run once:
-    M1Serial.begin(SERIAL_BR);
-    DebugSerial.begin(SERIAL_BR);
-
-    //****************************************************************************************************************************************
-
-    // // AP모드 진입(cam config reset): softAP() 메소드
-    // if (!isCamConfigDefined())
-    // {
-    //     // Connect to Wi-Fi network with SSID and password
-    //     Serial.println("Setting AP (Access Point)");
-    //     // NULL sets an open Access Point
-    //     WiFi.softAP("ESP-WIFI-MANAGER Master0", NULL);
-
-    //     IPAddress IP = WiFi.softAPIP(); // Software enabled Access Point : 가상 라우터, 가상의 액세스 포인트
-    //     Serial.print("AP IP address: ");
-    //     Serial.println(IP);
-
-    //     // Print Chip Info.
-    //     Serial.printf("Total Heap Size = %d\n\n", ESP.getHeapSize());
-
-    //     Serial.printf("Curr freeHeap Size4: %.1f%%\n", getCurrFreeHeapRatio()); // DEBUGGING
-
-    //     // Web Server Root URL
-    //     // GET방식
-    //     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-    //               { request->send(SPIFFS, "/wifimanager.html", "text/html"); });
-
-    //     server.serveStatic("/", SPIFFS, "/");
-    //     // POST방식
-    //     server.on("/", HTTP_POST, [](AsyncWebServerRequest *request)
-    //               {
-    //   int params = request->params();
-    //   for(int i=0;i<params;i++){
-    //     AsyncWebParameter* p = request->getParam(i);
-    //     if(p->isPost()){
-    //       // HTTP POST camId value
-    //       if (p->name() == PARAM_INPUT_1) {
-    //         camId = p->value().c_str();
-    //         Serial.print("Cam ID set to: ");
-    //         Serial.println(camId);
-    //         // Write file to save value
-    //         writeFile(SPIFFS, camIdPath, camId.c_str());
-    //       }
-    //       // HTTP POST slaveMAC value
-    //       if (p->name() == PARAM_INPUT_2) {
-    //         slaveMAC = p->value().c_str();
-    //         Serial.print("Dest. MAC set to: ");
-    //         Serial.println(slaveMAC);
-    //         // Write file to save value
-    //         writeFile(SPIFFS, slaveMACPath, slaveMAC.c_str());
-    //       }
-    //       // HTTP POST capturePeriod value
-    //       if (p->name() == PARAM_INPUT_3) {
-    //         capturePeriod = p->value().c_str();
-    //         Serial.print("Capture Period set to: ");
-    //         Serial.println(capturePeriod);
-    //         // Write file to save value
-    //         writeFile(SPIFFS, capturePeriodPath, capturePeriod.c_str());
-    //       }
-
-    //       Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
-    //     }
-    //   }
-    //   // ESP가 양식 세부 정보를 수신했음을 알 수 있도록 일부 텍스트가 포함된 응답을 send
-    //   request->send(200, "text/plain", "Done. ESP will restart, Take photo periodcally, and then Send it to Slave Device: " + slaveMAC);
-    //   Serial.printf("Curr freeHeap Size5: %.1f%%\n", getCurrFreeHeapRatio()); // DEBUGGING
-    //   delay(3000);
-    //   ESP.restart(); });
-    //     server.begin();
-    //     Serial.printf("Curr freeHeap Size6: %.1f%%\n", getCurrFreeHeapRatio()); // DEBUGGING
-    // }
-    // else
-    // {
-    //     Serial.println("CAMERA MASTER STARTED"); // tarted : 시작되다; 자동사인듯?
-    //     initCamera();                             // init camera
-    //     // initSD();                                 // init sd
-
-    //     Serial.printf("Curr freeHeap Size7: %.1f%%\n", getCurrFreeHeapRatio()); // DEBUGGING
-
-    //     /*
-    //     // Not use
-
-    //     // init onboad led
-    //     pinMode(ONBOADLED, OUTPUT);
-    //     digitalWrite(ONBOADLED, LOW);
-
-    //     // we now test to see if we got serial communication
-    //     unsigned long testForUart = millis();
-    //     Serial.print("WAIT UART");
-    //     while (testForUart + UARTWAITHANDSHACK > millis() && !Serial.available())
-    //     {
-    //       Serial.print(".");
-    //       delay(50);
-    //     }
-
-    //     if (Serial.available())
-    //     {
-    //       Serial.println("We are using Serial!!");
-    //       while (Serial.available())
-    //       {
-    //         Serial.println(Serial.read());
-    //       }
-    //       // useUartRX = 1;
-    //     }
-    //     */
-    //     /*
-    //         if (1) //! useUartRX
-    //         {*/
-    //     // set RX as pullup for safety
-    //     // pinMode(RXPIN, INPUT_PULLUP);
-    //     // Serial.println("We are using the button");
-
-    //     // Set device in STA mode to begin with
-    //     WiFi.mode(WIFI_STA);
-    //     // This is the mac address of the Master in Station Mode
-    //     Serial.print("STA MAC: ");
-    //     Serial.println(WiFi.macAddress());
-
-    //     Serial.printf("Curr freeHeap Size8: %.1f%%\n", getCurrFreeHeapRatio()); // DEBUGGING
-
-    //     // Init ESPNow with a fallback logic
-    //     InitESPNow();
-    //     Serial.printf("Curr freeHeap Size9: %.1f%%\n", getCurrFreeHeapRatio()); // DEBUGGING
-    //     // Once ESPNow is successfully Init, we will register for Send CB to
-    //     // get the status of Trasnmitted packet
-    //     esp_now_register_send_cb(OnDataSent);
-    //     /*}*/
-    //     allowsLoop = true;
-    //     Serial.printf("Curr freeHeap Size10: %.1f%%\n", getCurrFreeHeapRatio()); // DEBUGGING
-    // }
-
-    //****************************************************************************************************************************************
-
-    DebugSerial.println("TYPE1SC Module Start!!!");
-#if defined(USE_LCD)
-    u8x8log.print("TYPE1SC Module Start!!!\n");
-#endif
-
-    extAntenna();
-
-    /* TYPE1SC Module Initialization */
-    if (TYPE1SC.init())
-    {
-        DebugSerial.println("TYPE1SC Module Error!!!");
-#if defined(USE_LCD)
-        u8x8log.print("TYPE1SC Module Error!!!\n");
-#endif
-    }
-
-    /* Network Regsistraiton Check */
-    while (TYPE1SC.canConnect() != 0)
-    {
-        DebugSerial.println("Network not Ready !!!");
-#if defined(USE_LCD)
-        u8x8log.print("Network not Ready!!!\n");
-#endif
-
-        delay(2000);
-    }
-
-    /* Get Time (GMT, (+36/4) ==> Korea +9hour) */
-    char szTime[32];
-    if (TYPE1SC.getCCLK(szTime, sizeof(szTime)) == 0)
-    {
-        DebugSerial.print("Time : ");
-        DebugSerial.println(szTime);
-#if defined(USE_LCD)
-        u8x8log.print("Time : ");
-        u8x8log.print(szTime);
-        u8x8log.print("\n");
-#endif
-    }
-    delay(1000);
-
-    DebugSerial.println("TYPE1SC Module Ready!!!");
-#if defined(USE_LCD)
-    u8x8log.print("TYPE1SC Module Ready!!!\n");
-#endif
-
-#if defined(USE_WIFI)
-    // Begin Blynk
-    Blynk.begin(auth, "dinfo", "daon7521");
-    // 함수 주기 실행
-    timer.setInterval(SCAN_RATE, sendSensorData);
-#else
-
-    /* Enter a DNS address to get an IP address */
-
-    while (1)
-    {
-
-        if (TYPE1SC.getIPAddr("sgp1.blynk.cloud", IPAddr, sizeof(IPAddr)) == 0)
-        {
-            DebugSerial.print("Blynk IP Address : ");
-            DebugSerial.println(IPAddr);
-#if defined(USE_LCD)
-            u8x8log.print("Blynk IP Address : ");
-            u8x8log.print(IPAddr);
-            u8x8log.print("\n");
-#endif
-
-            break;
-        }
-        else
-        {
-            DebugSerial.println("Blynk IP Address Error!!!");
-#if defined(USE_LCD)
-            u8x8log.print("Blynk IP Address Error!!!\n");
-#endif
-        }
-        delay(2000);
-    }
-
-    //     /* 7 :Detach Network */
-    //     if (TYPE1SC.setCFUN(0) == 0)
-    //     {
-    //         DebugSerial.println("detach Network!!!");
-    // #if defined(USE_LCD)
-    //         u8x8log.print("detach Network!!!\n");
-    // #endif
-    //     }
-    //     delay(10000); // Detach Setup Time : 10sec
-
-#endif
-
-    // RS485 Setup
-    modbus.setTimeout(12000);
-    modbus.begin(9600, SERIAL_8N1, rxPin, txPin); // 직렬 전송 설정 (baud, config, rxPin, txPin, invert)
-                                                  // default config : SERIAL_8N1; { 데이터비트 8, 패리티 없음, 1 정지 비트}; E: 짝수 패리티, O: 홀수 패리티
-                                                  // rxPin: 직렬 데이터 수신 핀; txPin: 직렬  데이터 전송 핀 (uint8_t)
-}
-
-void loop()
-{
-
-#if defined(USE_WIFI)
-    Blynk.run();
-    timer.run();
-#else
-    if (firstRun)
-    {
-        sendSensorData();
-        firstRun = false;
-    }
-
-    currentMillis = millis();
-    if (currentMillis - previousMillis >= SCAN_RATE)
-    {
-        previousMillis = currentMillis;
-
-        sendSensorData();
-    }
-#endif
-}
+RTC_DATA_ATTR bool allowsLoop = false; // loop() DO or NOT
+RTC_DATA_ATTR bool firstRun = true;
 
 void extAntenna()
 {
@@ -764,3 +483,237 @@ void writeFile(fs::FS &fs, const char *path, const char *message)
 //         delay(5000);
 //     }
 // }
+
+void setup()
+{
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // disable brownout detector
+    /* CATM1 Modem PowerUp sequence */
+    pinMode(PWR_PIN, OUTPUT);
+    pinMode(RST_PIN, OUTPUT);
+    pinMode(WAKEUP_PIN, OUTPUT);
+
+    digitalWrite(PWR_PIN, HIGH);
+    digitalWrite(WAKEUP_PIN, HIGH);
+    digitalWrite(RST_PIN, LOW);
+    delay(100);
+    digitalWrite(RST_PIN, HIGH);
+    delay(2000);
+
+    /********************************/
+#if defined(USE_LCD)
+    u8x8.begin();
+    u8x8.setFont(u8x8_font_chroma48medium8_r);
+
+    u8x8log.begin(u8x8, U8LOG_WIDTH, U8LOG_HEIGHT, u8log_buffer);
+    u8x8log.setRedrawMode(
+        1); // 0: Update screen with newline, 1: Update screen for every char
+#endif
+
+    // put your setup code here, to run once:
+    M1Serial.begin(SERIAL_BR);
+    DebugSerial.begin(SERIAL_BR);
+
+    //****************************************************************************************************************************************
+
+    // // 설정 안된 상태: AP모드 진입(wifi config reset): softAP() 메소드
+    // if (!isWMConfigDefined())
+    // {
+    //     // Connect to Wi-Fi network with SSID and pass
+    //     Serial.println("Setting AP (Access Point)");
+    //     // NULL sets an open Access Point
+    //     WiFi.softAP("Daon Blynk ESP32 Manager", NULL);
+
+    //     IPAddress IP = WiFi.softAPIP(); // Software enabled Access Point : 가상 라우터, 가상의 액세스 포인트
+    //     Serial.print("AP IP address: ");
+    //     Serial.println(IP);
+
+    //     // Web Server Root URL
+    //     // GET방식
+    //     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+    //               { request->send(SPIFFS, "/wifimanager.html", "text/html"); });
+
+    //     server.serveStatic("/", SPIFFS, "/");
+    //     // POST방식
+    //     server.on("/", HTTP_POST, [](AsyncWebServerRequest *request)
+    //               {
+    //   int params = request->params();
+    //   for(int i=0;i<params;i++){
+    //     AsyncWebParameter* p = request->getParam(i);
+    //     if(p->isPost()){
+    //       // HTTP POST houseId value
+    //       if (p->name() == PARAM_INPUT_1) {
+    //         houseId = p->value().c_str();
+    //         Serial.print("Cam ID set to: ");
+    //         Serial.println(houseId);
+    //         // Write file to save value
+    //         writeFile(SPIFFS, houseIdPath, houseId.c_str());
+    //       }
+    //       // HTTP POST ssid value
+    //       if (p->name() == PARAM_INPUT_2)
+    //       {
+    //         ssid = p->value().c_str();
+    //         Serial.print("SSID set to: ");
+    //         Serial.println(ssid);
+    //         // Write file to save value
+    //         writeFile(SPIFFS, ssidPath, ssid.c_str());
+    //       }
+    //       // HTTP POST pass value
+    //       if (p->name() == PARAM_INPUT_3)
+    //       {
+    //         pass = p->value().c_str();
+    //         Serial.print("Password set to: ");
+    //         Serial.println(pass);
+    //         // Write file to save value
+    //         writeFile(SPIFFS, passPath, pass.c_str());
+    //       }
+    //       Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
+    //     }
+    //   }
+    //   // ESP가 양식 세부 정보를 수신했음을 알 수 있도록 일부 텍스트가 포함된 응답을 send
+    //   request->send(200, "text/plain", "Done. ESP will restart.");
+    //   delay(3000);
+    //   ESP.restart(); });
+    //     server.begin();
+    // }
+
+    // // 설정 완료 후: wifi 연결
+    // else
+    // {
+    //     Serial.println("LED Panel STARTED");
+    //     initLED();
+
+    //     initWiFi();
+    //     Serial.print("RSSI: ");
+    //     Serial.println(WiFi.RSSI());
+
+    //     configTime(3600 * timeZone, 3600 * summerTime, ntpServer);
+    //     printLocalTime();
+    //     Udp.begin(11000);
+
+    //     xTaskCreatePinnedToCore(timeWork, "timeWork", 10000, NULL, 0, &thWork, 0);
+    //     allowsLoop = true;
+    // }
+
+    //****************************************************************************************************************************************
+
+    DebugSerial.println("TYPE1SC Module Start!!!");
+#if defined(USE_LCD)
+    u8x8log.print("TYPE1SC Module Start!!!\n");
+#endif
+
+    extAntenna();
+
+    /* TYPE1SC Module Initialization */
+    if (TYPE1SC.init())
+    {
+        DebugSerial.println("TYPE1SC Module Error!!!");
+#if defined(USE_LCD)
+        u8x8log.print("TYPE1SC Module Error!!!\n");
+#endif
+    }
+
+    /* Network Regsistraiton Check */
+    while (TYPE1SC.canConnect() != 0)
+    {
+        DebugSerial.println("Network not Ready !!!");
+#if defined(USE_LCD)
+        u8x8log.print("Network not Ready!!!\n");
+#endif
+
+        delay(2000);
+    }
+
+    /* Get Time (GMT, (+36/4) ==> Korea +9hour) */
+    char szTime[32];
+    if (TYPE1SC.getCCLK(szTime, sizeof(szTime)) == 0)
+    {
+        DebugSerial.print("Time : ");
+        DebugSerial.println(szTime);
+#if defined(USE_LCD)
+        u8x8log.print("Time : ");
+        u8x8log.print(szTime);
+        u8x8log.print("\n");
+#endif
+    }
+    delay(1000);
+
+    DebugSerial.println("TYPE1SC Module Ready!!!");
+#if defined(USE_LCD)
+    u8x8log.print("TYPE1SC Module Ready!!!\n");
+#endif
+
+#if defined(USE_WIFI)
+    // Begin Blynk
+    Blynk.begin(auth, "dinfo", "daon7521");
+    // 함수 주기 실행
+    timer.setInterval(SCAN_RATE, sendSensorData);
+#else
+
+    /* Enter a DNS address to get an IP address */
+
+    while (1)
+    {
+
+        if (TYPE1SC.getIPAddr("sgp1.blynk.cloud", IPAddr, sizeof(IPAddr)) == 0)
+        {
+            DebugSerial.print("Blynk IP Address : ");
+            DebugSerial.println(IPAddr);
+#if defined(USE_LCD)
+            u8x8log.print("Blynk IP Address : ");
+            u8x8log.print(IPAddr);
+            u8x8log.print("\n");
+#endif
+
+            break;
+        }
+        else
+        {
+            DebugSerial.println("Blynk IP Address Error!!!");
+#if defined(USE_LCD)
+            u8x8log.print("Blynk IP Address Error!!!\n");
+#endif
+        }
+        delay(2000);
+    }
+
+    //     /* 7 :Detach Network */
+    //     if (TYPE1SC.setCFUN(0) == 0)
+    //     {
+    //         DebugSerial.println("detach Network!!!");
+    // #if defined(USE_LCD)
+    //         u8x8log.print("detach Network!!!\n");
+    // #endif
+    //     }
+    //     delay(10000); // Detach Setup Time : 10sec
+
+#endif
+
+    // RS485 Setup
+    modbus.setTimeout(12000);
+    modbus.begin(9600, SERIAL_8N1, rxPin, txPin); // 직렬 전송 설정 (baud, config, rxPin, txPin, invert)
+                                                  // default config : SERIAL_8N1; { 데이터비트 8, 패리티 없음, 1 정지 비트}; E: 짝수 패리티, O: 홀수 패리티
+                                                  // rxPin: 직렬 데이터 수신 핀; txPin: 직렬  데이터 전송 핀 (uint8_t)
+}
+
+void loop()
+{
+
+#if defined(USE_WIFI)
+    Blynk.run();
+    timer.run();
+#else
+    if (firstRun)
+    {
+        sendSensorData();
+        firstRun = false;
+    }
+
+    currentMillis = millis();
+    if (currentMillis - previousMillis >= SCAN_RATE)
+    {
+        previousMillis = currentMillis;
+
+        sendSensorData();
+    }
+#endif
+}
