@@ -166,10 +166,10 @@ void getSensorData()
     {
         if (modbus.readHoldingRegisters(1, 0, holdingRegisters, 3))
         {
-            t = holdingRegisters[0] / 10.0;
-            soil_m = holdingRegisters[1] / 10.0;
+            t = holdingRegisters[1] / 10.0;
+            soil_m = holdingRegisters[0] / 10.0;
             ec = holdingRegisters[2] / 1000.0;
-            Serial.printf("RK520-02 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [EC]: %.2f\n", messageID, t, soil_m, ec);
+            Serial.printf("RK520-02 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [EC]: %.3f\n", messageID, t, soil_m, ec);
 
             break;
         }
@@ -281,7 +281,7 @@ INFO:
     /* 3 :TCP Socket Send Data */
     String data = "GET /external/api/batch/update";
     data += "?token=" BLYNK_AUTH_TOKEN "&";
-    data += "v0=" + String(t) + "&" + "v1=" + String(soil_m) + "&" + "v2=" + String(ec);
+    data += "v0=" + String(t) + "&" + "v1=" + String(soil_m) + "&" + "v2=" + String(ec, 3); // String 기본 소숫점 2자리까지만 변환, second param으로 3자리 명시
 
     data += " HTTP/1.1\r\n";
     data += "Host: sgp1.blynk.cloud\r\n";
