@@ -111,12 +111,14 @@ RTC_DATA_ATTR BlynkTimer timer; // 함수 주기적 실행 위한 타이머
 #define SLAVE_ID 1
 #define START_ADDRESS 0
 #define QUANTITY 2
-#define SCAN_RATE 600000 // 60만: 10분
+#define SCAN_RATE 60000          // 60만: 10분; 미사용
+#define DEEPSLEEP_PERIOD_SEC 600 // 600초
 
 unsigned long currentMillis = 0;
 unsigned long previousMillis = 0; // Stores last time using Reference time
 
 RTC_DATA_ATTR unsigned int messageID = 0;
+RTC_DATA_ATTR bool errBit; // TM100 센서에러비트; 0:에러없음, 1:센서에러
 #if defined(EC_SENSING_MODE)
 RTC_DATA_ATTR float t;
 RTC_DATA_ATTR float soil_m; // Soil Moisture
@@ -133,6 +135,7 @@ RTC_DATA_ATTR const uint8_t dePin = 25; // DE+RE
 RTC_DATA_ATTR ModbusRTUMaster modbus(Serial1, dePin); // serial port, driver enable pin for rs-485 (optional)
 #if defined(EC_SENSING_MODE)
 RTC_DATA_ATTR uint16_t holdingRegisters[3] = {0xFF, 0xFF, 0xFF};
+RTC_DATA_ATTR uint16_t inputRegisters[3] = {0xFF, 0xFF, 0xFF};
 #else
 RTC_DATA_ATTR uint16_t holdingRegisters[2] = {0xFF, 0xFF};
 #endif
@@ -164,12 +167,18 @@ void getSensorData()
 #if defined(EC_SENSING_MODE)
     while (true)
     {
-        if (modbus.readHoldingRegisters(1, 0, holdingRegisters, 3))
+        // CONOTEC CNT-TM100
+        if (modbus.readInputRegisters(10, 0, inputRegisters, 3))
         {
-            t = holdingRegisters[1] / 10.0;
-            soil_m = holdingRegisters[0] / 10.0;
-            ec = holdingRegisters[2] / 1000.0;
-            Serial.printf("RK520-02 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [EC]: %.3f\n", messageID, t, soil_m, ec);
+            t = inputRegisters[0] / 10.0;
+            soil_m = inputRegisters[1] / 10.0;
+            errBit = inputRegisters[2];
+            Serial.printf("RK520-02 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [ErrBit]: %d\n", messageID, t, soil_m, errBit);
+
+            if (!errBit)
+            {
+                Serial.println("Sensor Open ERROR!!!");
+            }
 
             break;
         }
@@ -278,10 +287,12 @@ INFO:
         }
     }
 
-    /* 3 :TCP Socket Send Data */
+    /* 3-1 :TCP Socket Send Data */
     String data = "GET /external/api/batch/update";
     data += "?token=" BLYNK_AUTH_TOKEN "&";
-    data += "v0=" + String(t) + "&" + "v1=" + String(soil_m) + "&" + "v2=" + String(ec, 3); // String 기본 소숫점 2자리까지만 변환, second param으로 3자리 명시
+    // data += "v0=" + String(t) + "&" + "v1=" + String(soil_m) + "&" + "v2=" + String(ec, 3); // String 기본 소숫점 2자리까지만 변환, second param으로 3자리 명시
+
+    data += "v0=" + String(t) + "&" + "v1=" + String(soil_m);
 
     data += " HTTP/1.1\r\n";
     data += "Host: sgp1.blynk.cloud\r\n";
@@ -308,7 +319,66 @@ INFO:
 #endif
     }
 
-    /* 4 :TCP Socket Recv Data */
+    /* 4-1 :TCP Socket Recv Data */
+    if (TYPE1SC.socketRecv(recvBuffer, sizeof(recvBuffer), &recvSize) == 0)
+    {
+        DebugSerial.print("[RecvSize] >> ");
+        DebugSerial.println(recvSize);
+        DebugSerial.print("[Recv] >> ");
+        DebugSerial.println(recvBuffer);
+#if defined(USE_LCD)
+        u8x8log.print("[RecvSize] >> ");
+        u8x8log.print(recvSize);
+        u8x8log.print("\n");
+        u8x8log.print("[Recv] >> ");
+        u8x8log.print(recvBuffer);
+        u8x8log.print("\n");
+#endif
+    }
+    else
+    {
+        DebugSerial.println("Recv Fail!!!");
+#if defined(USE_LCD)
+        u8x8log.print("Recv Fail!!!\n");
+#endif
+    }
+
+    /* 3-2 :TCP Socket Send Data: Event Message */
+    // 온도 경고 알림
+    if (t > 18)
+    {
+        String data = "GET /external/api/logEvent";
+        data += "?token=" BLYNK_AUTH_TOKEN;
+        data += "&code=CODE_tempAlert";
+        data += "&description=TEMP_WARNING:HOT";
+
+        data += " HTTP/1.1\r\n";
+        data += "Host: sgp1.blynk.cloud\r\n";
+        data += "Connection: keep-alive\r\n\r\n";
+
+        // String data = "https//sgp1.blynk.cloud/external/api/batch/update?token=" BLYNK_AUTH_TOKEN;
+        // data += "v0=" + String(t) + "&" + "v1=" + String(soil_m) + "&" + "v2=" + String(ec);
+
+        if (TYPE1SC.socketSend(data.c_str()) == 0)
+        {
+            DebugSerial.print("[HTTP Send] >> ");
+            DebugSerial.println(data);
+#if defined(USE_LCD)
+            u8x8log.print("[HTTP Send] >> ");
+            u8x8log.print(data);
+            u8x8log.print("\n");
+#endif
+        }
+        else
+        {
+            DebugSerial.println("Send Fail!!!");
+#if defined(USE_LCD)
+            u8x8log.print("Send Fail!!!\n");
+#endif
+        }
+    }
+
+    /* 4-2 :TCP Socket Recv Data */
     if (TYPE1SC.socketRecv(recvBuffer, sizeof(recvBuffer), &recvSize) == 0)
     {
         DebugSerial.print("[RecvSize] >> ");
@@ -697,7 +767,7 @@ void setup()
     delay(10000); // Detach Setup Time : 10sec
 
     Serial.println("Going to sleep now");
-    esp_sleep_enable_timer_wakeup(600e6); // 10min; 1s = 1,000,000us
+    esp_sleep_enable_timer_wakeup(DEEPSLEEP_PERIOD_SEC * 1000000); // 10min; 1s = 1,000,000us
     esp_deep_sleep_start();
 }
 
