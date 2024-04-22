@@ -87,7 +87,7 @@ RTC_DATA_ATTR int recvSize;
 /* EXT_ANT_ON 0 : Use an internal antenna.
  * EXT_ANT_ON 1 : Use an external antenna.
  */
-#define EXT_ANT_ON 0
+#define EXT_ANT_ON 1
 void extAntenna();
 
 // Blynk setting ****************************************************************************************
@@ -343,64 +343,122 @@ INFO:
 #endif
     }
 
-    /* 3-2 :TCP Socket Send Data: Event Message */
-    // 온도 경고 알림
-    if (t > 18)
-    {
-        String data = "GET /external/api/logEvent";
-        data += "?token=" BLYNK_AUTH_TOKEN;
-        data += "&code=CODE_tempAlert";
-        data += "&description=TEMP_WARNING:HOT";
+    //     /* 3-2 :TCP Socket Send Data: Event Message */
+    //     // 온도 경고 알림
+    //     if (t > 50)
+    //     {
+    //         String data = "GET /external/api/logEvent";
+    //         data += "?token=" BLYNK_AUTH_TOKEN;
+    //         data += "&code=CODE_HighTempAlert";
+    //         data += "&description=TEMP_WARNING:HOT"; // 앱에서 한글 미지원
 
-        data += " HTTP/1.1\r\n";
-        data += "Host: sgp1.blynk.cloud\r\n";
-        data += "Connection: keep-alive\r\n\r\n";
+    //         data += " HTTP/1.1\r\n";
+    //         data += "Host: sgp1.blynk.cloud\r\n";
+    //         data += "Connection: keep-alive\r\n\r\n";
 
-        // String data = "https//sgp1.blynk.cloud/external/api/batch/update?token=" BLYNK_AUTH_TOKEN;
-        // data += "v0=" + String(t) + "&" + "v1=" + String(soil_m) + "&" + "v2=" + String(ec);
+    //         // String data = "https//sgp1.blynk.cloud/external/api/batch/update?token=" BLYNK_AUTH_TOKEN;
+    //         // data += "v0=" + String(t) + "&" + "v1=" + String(soil_m) + "&" + "v2=" + String(ec);
 
-        if (TYPE1SC.socketSend(data.c_str()) == 0)
-        {
-            DebugSerial.print("[HTTP Send] >> ");
-            DebugSerial.println(data);
-#if defined(USE_LCD)
-            u8x8log.print("[HTTP Send] >> ");
-            u8x8log.print(data);
-            u8x8log.print("\n");
-#endif
-        }
-        else
-        {
-            DebugSerial.println("Send Fail!!!");
-#if defined(USE_LCD)
-            u8x8log.print("Send Fail!!!\n");
-#endif
-        }
-    }
+    //         if (TYPE1SC.socketSend(data.c_str()) == 0)
+    //         {
+    //             DebugSerial.print("[HTTP Send] >> ");
+    //             DebugSerial.println(data);
+    // #if defined(USE_LCD)
+    //             u8x8log.print("[HTTP Send] >> ");
+    //             u8x8log.print(data);
+    //             u8x8log.print("\n");
+    // #endif
+    //         }
+    //         else
+    //         {
+    //             DebugSerial.println("Send Fail!!!");
+    // #if defined(USE_LCD)
+    //             u8x8log.print("Send Fail!!!\n");
+    // #endif
+    //         }
 
-    /* 4-2 :TCP Socket Recv Data */
-    if (TYPE1SC.socketRecv(recvBuffer, sizeof(recvBuffer), &recvSize) == 0)
-    {
-        DebugSerial.print("[RecvSize] >> ");
-        DebugSerial.println(recvSize);
-        DebugSerial.print("[Recv] >> ");
-        DebugSerial.println(recvBuffer);
-#if defined(USE_LCD)
-        u8x8log.print("[RecvSize] >> ");
-        u8x8log.print(recvSize);
-        u8x8log.print("\n");
-        u8x8log.print("[Recv] >> ");
-        u8x8log.print(recvBuffer);
-        u8x8log.print("\n");
-#endif
-    }
-    else
-    {
-        DebugSerial.println("Recv Fail!!!");
-#if defined(USE_LCD)
-        u8x8log.print("Recv Fail!!!\n");
-#endif
-    }
+    //         /* 4-2 :TCP Socket Recv Data */
+    //         if (TYPE1SC.socketRecv(recvBuffer, sizeof(recvBuffer), &recvSize) == 0)
+    //         {
+    //             DebugSerial.print("[RecvSize] >> ");
+    //             DebugSerial.println(recvSize);
+    //             DebugSerial.print("[Recv] >> ");
+    //             DebugSerial.println(recvBuffer);
+    // #if defined(USE_LCD)
+    //             u8x8log.print("[RecvSize] >> ");
+    //             u8x8log.print(recvSize);
+    //             u8x8log.print("\n");
+    //             u8x8log.print("[Recv] >> ");
+    //             u8x8log.print(recvBuffer);
+    //             u8x8log.print("\n");
+    // #endif
+    //         }
+    //         else
+    //         {
+    //             DebugSerial.println("Recv Fail!!!");
+    // #if defined(USE_LCD)
+    //             u8x8log.print("Recv Fail!!!\n");
+    // #endif
+    //         }
+    //     }
+
+    //     // 온도 경고 알림
+    //     else if (t < 30)
+    //     {
+    //         String data = "GET /external/api/logEvent";
+    //         data += "?token=" BLYNK_AUTH_TOKEN;
+    //         data += "&code=CODE_LowTempAlert";
+    //         data += "&description=TEMP_WARNING:COLD"; // 앱에서 한글 미지원
+
+    //         data += " HTTP/1.1\r\n";
+    //         data += "Host: sgp1.blynk.cloud\r\n";
+    //         data += "Connection: keep-alive\r\n\r\n";
+
+    //         // String data = "https//sgp1.blynk.cloud/external/api/batch/update?token=" BLYNK_AUTH_TOKEN;
+    //         // data += "v0=" + String(t) + "&" + "v1=" + String(soil_m) + "&" + "v2=" + String(ec);
+
+    //         if (TYPE1SC.socketSend(data.c_str()) == 0)
+    //         {
+    //             DebugSerial.print("[HTTP Send] >> ");
+    //             DebugSerial.println(data);
+    // #if defined(USE_LCD)
+    //             u8x8log.print("[HTTP Send] >> ");
+    //             u8x8log.print(data);
+    //             u8x8log.print("\n");
+    // #endif
+    //         }
+    //         else
+    //         {
+    //             DebugSerial.println("Send Fail!!!");
+    // #if defined(USE_LCD)
+    //             u8x8log.print("Send Fail!!!\n");
+    // #endif
+    //         }
+
+    //         /* 4-2 :TCP Socket Recv Data */
+    //         if (TYPE1SC.socketRecv(recvBuffer, sizeof(recvBuffer), &recvSize) == 0)
+    //         {
+    //             DebugSerial.print("[RecvSize] >> ");
+    //             DebugSerial.println(recvSize);
+    //             DebugSerial.print("[Recv] >> ");
+    //             DebugSerial.println(recvBuffer);
+    // #if defined(USE_LCD)
+    //             u8x8log.print("[RecvSize] >> ");
+    //             u8x8log.print(recvSize);
+    //             u8x8log.print("\n");
+    //             u8x8log.print("[Recv] >> ");
+    //             u8x8log.print(recvBuffer);
+    //             u8x8log.print("\n");
+    // #endif
+    //         }
+    //         else
+    //         {
+    //             DebugSerial.println("Recv Fail!!!");
+    // #if defined(USE_LCD)
+    //             u8x8log.print("Recv Fail!!!\n");
+    // #endif
+    //         }
+    //     }
 
     /* 5 :TCP Socket DeActivation */
     if (TYPE1SC.socketDeActivate() == 0)
