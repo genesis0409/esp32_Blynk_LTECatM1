@@ -2,7 +2,8 @@
  * Before Use, Select Option:
  * 1. TYPE1SC: EXT_ANT_ON
  * 2. Blynk: USE_WIFI
- * 3. RS485: EC_SENSING_MODE
+ * 3. RS485: MODBUS_READ_HOLDING_REGISTERS // 0x03
+ *           MODBUS_READ_INPUT_REGISTERS   // 0x04
  */
 
 // Arduino setting **************************************************************************************
@@ -51,8 +52,9 @@ const char *capturePeriodPath = "/capturePeriod.txt";
 // Use LCD? *********************************************************************************************
 // #define USE_LCD
 
-// Soil Moisture + Temp + EC ****************************************************************************
-#define EC_SENSING_MODE // To disable, change to annotation.
+// Choose Function Code ****************************************************************************
+#define MODBUS_READ_HOLDING_REGISTERS // 0x03
+// #define MODBUS_READ_INPUT_REGISTERS   // 0x04
 // ******************************************************************************************************
 
 // TYPE1SC setting **************************************************************************************
@@ -111,33 +113,34 @@ RTC_DATA_ATTR BlynkTimer timer; // 함수 주기적 실행 위한 타이머
 #define SLAVE_ID 1
 #define START_ADDRESS 0
 #define QUANTITY 2
-#define SCAN_RATE 60000          // 60만: 10분; 미사용
-#define DEEPSLEEP_PERIOD_SEC 600 // 600초
+#define SCAN_RATE 60000          // 60만: 10분; wifi 센싱 전용
+#define DEEPSLEEP_PERIOD_SEC 600 // 600초 ESP32 Deep Sleep
 
 unsigned long currentMillis = 0;
 unsigned long previousMillis = 0; // Stores last time using Reference time
 
 RTC_DATA_ATTR unsigned int messageID = 0;
 RTC_DATA_ATTR bool errBit; // TM100 센서에러비트; 0:에러없음, 1:센서에러
-#if defined(EC_SENSING_MODE)
-RTC_DATA_ATTR float t;
-RTC_DATA_ATTR float soil_m; // Soil Moisture
-RTC_DATA_ATTR float ec;     // 전기 전도도
-#else
+
+RTC_DATA_ATTR float ec; // 전기 전도도
 RTC_DATA_ATTR float t;
 RTC_DATA_ATTR float h;
-#endif
+
+// Allocate the JSON document
+RTC_DATA_ATTR JsonDocument doc;
 
 RTC_DATA_ATTR const uint8_t rxPin = 33; // RX-RO
 RTC_DATA_ATTR const uint8_t txPin = 32; // TX-DI
 RTC_DATA_ATTR const uint8_t dePin = 25; // DE+RE
 
 RTC_DATA_ATTR ModbusRTUMaster modbus(Serial1, dePin); // serial port, driver enable pin for rs-485 (optional)
-#if defined(EC_SENSING_MODE)
+
+#if defined(MODBUS_READ_HOLDING_REGISTERS) // 0x03
+RTC_DATA_ATTR uint16_t holdingRegisters[2] = {0xFF, 0xFF};
+#endif
+#if defined(MODBUS_INPUT_HOLDING_REGISTERS) // 0x04
 RTC_DATA_ATTR uint16_t holdingRegisters[3] = {0xFF, 0xFF, 0xFF};
 RTC_DATA_ATTR uint16_t inputRegisters[3] = {0xFF, 0xFF, 0xFF};
-#else
-RTC_DATA_ATTR uint16_t holdingRegisters[2] = {0xFF, 0xFF};
 #endif
 
 // 메소드 선언부 *******************************************************************************************
@@ -164,21 +167,18 @@ void extAntenna()
 
 void getSensorData()
 {
-#if defined(EC_SENSING_MODE)
+#if defined(MODBUS_READ_HOLDING_REGISTERS)
     while (true)
     {
-        // CONOTEC CNT-TM100
-        if (modbus.readInputRegisters(10, 0, inputRegisters, 3))
+        if (modbus.readHoldingRegisters(1, 0, holdingRegisters, 2)) // 0x03
         {
-            t = inputRegisters[0] / 10.0;
-            soil_m = inputRegisters[1] / 10.0;
-            errBit = inputRegisters[2];
-            Serial.printf("RK520-02 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [ErrBit]: %d\n", messageID, t, soil_m, errBit);
+            t = holdingRegisters[0] / 10.0;
+            h = holdingRegisters[1] / 10.0;
+            Serial.printf("TZ-THT02 [messageID]: %d | [TEMP]: %.1f, [HUMI]: %.1f\n", messageID, t, h);
 
-            if (!errBit)
-            {
-                Serial.println("Sensor Open ERROR!!!");
-            }
+            // // Sent to Blynk
+            // Blynk.virtualWrite(V0, t);
+            // Blynk.virtualWrite(V1, h);
 
             break;
         }
@@ -198,19 +198,24 @@ void getSensorData()
             delay(5000);
         }
     }
+#endif
 
-#else
+#if defined(MODBUS_READ_INPUT_REGISTERS) // 0x04
+
     while (true)
     {
-        if (modbus.readHoldingRegisters(1, 0, holdingRegisters, 2))
+        // CONOTEC CNT-TM100: no ec, has errbit
+        if (modbus.readInputRegisters(10, 0, inputRegisters, 3)) // 0x04
         {
-            t = holdingRegisters[0] / 10.0;
-            h = holdingRegisters[1] / 10.0;
-            Serial.printf("TZ-THT02 [messageID]: %d | [TEMP]: %.1f, [HUMI]: %.1f\n", messageID, t, h);
+            t = inputRegisters[0] / 10.0;
+            h = inputRegisters[1] / 10.0;
+            errBit = inputRegisters[2];
+            Serial.printf("RK520-02 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [ErrBit]: %d\n", messageID, t, h, errBit);
 
-            // Sent to Blynk
-            Blynk.virtualWrite(V0, t);
-            Blynk.virtualWrite(V1, h);
+            if (!errBit)
+            {
+                Serial.println("Sensor Open ERROR!!!");
+            }
 
             break;
         }
@@ -243,7 +248,7 @@ void sendSensorData()
 #if defined(USE_WIFI)
     // Sent to Blynk
     Blynk.virtualWrite(V0, t);
-    Blynk.virtualWrite(V1, soil_m);
+    Blynk.virtualWrite(V1, h);
     Blynk.virtualWrite(V2, ec);
 #else
 
@@ -290,16 +295,16 @@ INFO:
     /* 3-1 :TCP Socket Send Data */
     String data = "GET /external/api/batch/update";
     data += "?token=" BLYNK_AUTH_TOKEN "&";
-    // data += "v0=" + String(t) + "&" + "v1=" + String(soil_m) + "&" + "v2=" + String(ec, 3); // String 기본 소숫점 2자리까지만 변환, second param으로 3자리 명시
+    // data += "v0=" + String(t) + "&" + "v1=" + String(h) + "&" + "v2=" + String(ec, 3); // String 기본 소숫점 2자리까지만 변환, second param으로 3자리 명시
 
-    data += "v0=" + String(t) + "&" + "v1=" + String(soil_m);
+    data += "v0=" + String(t) + "&" + "v1=" + String(h);
 
     data += " HTTP/1.1\r\n";
     data += "Host: sgp1.blynk.cloud\r\n";
     data += "Connection: keep-alive\r\n\r\n";
 
     // String data = "https//sgp1.blynk.cloud/external/api/batch/update?token=" BLYNK_AUTH_TOKEN;
-    // data += "v0=" + String(t) + "&" + "v1=" + String(soil_m) + "&" + "v2=" + String(ec);
+    // data += "v0=" + String(t) + "&" + "v1=" + String(h) + "&" + "v2=" + String(ec);
 
     if (TYPE1SC.socketSend(data.c_str()) == 0)
     {
@@ -343,9 +348,14 @@ INFO:
 #endif
     }
 
+    // if (doc.isNull())
+    // {
+    //     // blynk에서 기준값 받아오는 로직
+    // }
+
     //     /* 3-2 :TCP Socket Send Data: Event Message */
     //     // 온도 경고 알림
-    //     if (t > 50)
+    //     else if (t > UpperLimitTemp)
     //     {
     //         String data = "GET /external/api/logEvent";
     //         data += "?token=" BLYNK_AUTH_TOKEN;
@@ -357,7 +367,7 @@ INFO:
     //         data += "Connection: keep-alive\r\n\r\n";
 
     //         // String data = "https//sgp1.blynk.cloud/external/api/batch/update?token=" BLYNK_AUTH_TOKEN;
-    //         // data += "v0=" + String(t) + "&" + "v1=" + String(soil_m) + "&" + "v2=" + String(ec);
+    //         // data += "v0=" + String(t) + "&" + "v1=" + String(h) + "&" + "v2=" + String(ec);
 
     //         if (TYPE1SC.socketSend(data.c_str()) == 0)
     //         {
@@ -403,7 +413,7 @@ INFO:
     //     }
 
     //     // 온도 경고 알림
-    //     else if (t < 30)
+    //     else if (t < LowerLimitTemp)
     //     {
     //         String data = "GET /external/api/logEvent";
     //         data += "?token=" BLYNK_AUTH_TOKEN;
@@ -415,7 +425,7 @@ INFO:
     //         data += "Connection: keep-alive\r\n\r\n";
 
     //         // String data = "https//sgp1.blynk.cloud/external/api/batch/update?token=" BLYNK_AUTH_TOKEN;
-    //         // data += "v0=" + String(t) + "&" + "v1=" + String(soil_m) + "&" + "v2=" + String(ec);
+    //         // data += "v0=" + String(t) + "&" + "v1=" + String(h) + "&" + "v2=" + String(ec);
 
     //         if (TYPE1SC.socketSend(data.c_str()) == 0)
     //         {
@@ -812,6 +822,9 @@ void setup()
                                                   // default config : SERIAL_8N1; { 데이터비트 8, 패리티 없음, 1 정지 비트}; E: 짝수 패리티, O: 홀수 패리티
                                                   // rxPin: 직렬 데이터 수신 핀; txPin: 직렬  데이터 전송 핀 (uint8_t)
 
+#if defined(USE_WIFI)
+
+#else
     sendSensorData();
 
     /* 7 :Detach Network */
@@ -827,6 +840,7 @@ void setup()
     Serial.println("Going to sleep now");
     esp_sleep_enable_timer_wakeup(DEEPSLEEP_PERIOD_SEC * 1000000); // 10min; 1s = 1,000,000us
     esp_deep_sleep_start();
+#endif
 }
 
 void loop()

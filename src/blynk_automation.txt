@@ -1,0 +1,9 @@
+고온 경고
+{DEVICE_NAME} 고온 경고
+현재 온도 : {TRIGGER_VALUE}℃
+온도 하강 조치가 필요합니다.
+
+저온 경고
+{DEVICE_NAME} 저온 경고
+현재 온도 : {TRIGGER_VALUE}℃
+온도 상승 조치가 필요합니다.
