@@ -2,8 +2,9 @@
  * Before Use, Select Option:
  * 1. TYPE1SC: EXT_ANT_ON
  * 2. Blynk: USE_WIFI
- * 3. RS485: MODBUS_READ_HOLDING_REGISTERS // 0x03
- *           MODBUS_READ_INPUT_REGISTERS   // 0x04
+ * 3. RS485: TZ_THT02 // 0x03
+ *           RK520_02 // 0x03
+ *           CONOTEC_CNT_TM100   // 0x04
  */
 
 // Arduino setting **************************************************************************************
@@ -20,7 +21,7 @@
 #include "config_Blynk.h"
 #include <BlynkSimpleEsp32.h> // wifi header...
 
-#include <ModbusRTUMaster.h>
+#include <ModbusMaster.h>
 
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
@@ -52,9 +53,10 @@ const char *capturePeriodPath = "/capturePeriod.txt";
 // Use LCD? *********************************************************************************************
 // #define USE_LCD
 
-// Choose Function Code ****************************************************************************
-#define MODBUS_READ_HOLDING_REGISTERS // 0x03
-// #define MODBUS_READ_INPUT_REGISTERS   // 0x04
+// Choose Sensor ****************************************************************************************
+// #define TZ_THT02          // 0x03
+// #define RK520_02          // 0x03
+#define CONOTEC_CNT_TM100 // 0x04
 // ******************************************************************************************************
 
 // TYPE1SC setting **************************************************************************************
@@ -66,7 +68,8 @@ const char *capturePeriodPath = "/capturePeriod.txt";
 #define EXT_ANT 4
 
 #define DebugSerial Serial
-#define M1Serial Serial2 // ESP32
+HardwareSerial SerialPort(1); // use ESP32 UART1
+#define M1Serial Serial2      // ESP32
 
 String APN = "simplio.apn";
 
@@ -110,11 +113,10 @@ RTC_DATA_ATTR BlynkTimer timer; // 함수 주기적 실행 위한 타이머
  * Function Code: 0x10; writeMultipleHoldingRegisters(): modbus.writeMultipleHoldingRegisters(slaveId, startingAddress, buffer, quantity); 여러 워드 쓰기; 연속 레지스터 블록 쓰기
 */
 // RS485 setting ****************************************************************************************
-#define SLAVE_ID 1
-#define START_ADDRESS 0
-#define QUANTITY 2
-#define SCAN_RATE 60000          // 60만: 10분; wifi 센싱 전용
+
 #define DEEPSLEEP_PERIOD_SEC 600 // 600초 ESP32 Deep Sleep
+
+#define SCAN_RATE 60000 // 60만: 10분; wifi 센싱 전용
 
 unsigned long currentMillis = 0;
 unsigned long previousMillis = 0; // Stores last time using Reference time
@@ -129,21 +131,38 @@ RTC_DATA_ATTR float h;
 // Allocate the JSON document
 RTC_DATA_ATTR JsonDocument doc;
 
-RTC_DATA_ATTR const uint8_t rxPin = 33; // RX-RO
 RTC_DATA_ATTR const uint8_t txPin = 32; // TX-DI
-RTC_DATA_ATTR const uint8_t dePin = 25; // DE+RE
+RTC_DATA_ATTR const uint8_t rxPin = 33; // RX-RO
+RTC_DATA_ATTR const uint8_t dePin = 13; // DE
+RTC_DATA_ATTR const uint8_t rePin = 14; // RE
 
-RTC_DATA_ATTR ModbusRTUMaster modbus(Serial1, dePin); // serial port, driver enable pin for rs-485 (optional)
+RTC_DATA_ATTR ModbusMaster modbus;
 
-#if defined(MODBUS_READ_HOLDING_REGISTERS) // 0x03
-RTC_DATA_ATTR uint16_t holdingRegisters[2] = {0xFF, 0xFF};
+RTC_DATA_ATTR uint8_t modbus_result;
+
+#if defined(TZ_THT02) // 0x03
+#define SLAVE_ID 1
+#define READ_START_ADDRESS 0
+#define READ_QUANTITY 2
+RTC_DATA_ATTR uint16_t holdingRegisters[2] = {0, 0};
 #endif
-#if defined(MODBUS_INPUT_HOLDING_REGISTERS) // 0x04
-RTC_DATA_ATTR uint16_t holdingRegisters[3] = {0xFF, 0xFF, 0xFF};
-RTC_DATA_ATTR uint16_t inputRegisters[3] = {0xFF, 0xFF, 0xFF};
+#if defined(RK520_02) // 0x03
+#define SLAVE_ID 1
+#define READ_START_ADDRESS 0
+#define READ_QUANTITY 3
+RTC_DATA_ATTR uint16_t holdingRegisters[3] = {0, 0, 0};
+#endif
+#if defined(CONOTEC_CNT_TM100) // 0x04
+#define SLAVE_ID 10
+#define READ_START_ADDRESS 0
+#define READ_QUANTITY 3
+RTC_DATA_ATTR uint16_t inputRegisters[3] = {0, 0, 0};
 #endif
 
 // 메소드 선언부 *******************************************************************************************
+void preTransmission();  // 전송 방식
+void postTransmission(); // 수신 방식
+
 void getSensorData();
 void sendSensorData();
 
@@ -165,16 +184,36 @@ void extAntenna()
     }
 }
 
+void preTransmission()
+{
+    // 전송 방식
+    digitalWrite(dePin, HIGH);
+    digitalWrite(rePin, HIGH);
+}
+
+void postTransmission()
+{
+    // 수신 방식
+    digitalWrite(dePin, LOW);
+    digitalWrite(rePin, LOW);
+}
+
 void getSensorData()
 {
-#if defined(MODBUS_READ_HOLDING_REGISTERS)
+#if defined(TZ_THT02) // 0x03
     while (true)
     {
-        if (modbus.readHoldingRegisters(1, 0, holdingRegisters, 2)) // 0x03
+        modbus_result = modbus.readHoldingRegisters(READ_START_ADDRESS, READ_QUANTITY); // 0x03
+
+        if (modbus_result == modbus.ku8MBSuccess)
         {
+            holdingRegisters[0] = modbus.getResponseBuffer(0);
+            holdingRegisters[1] = modbus.getResponseBuffer(1);
+
             t = holdingRegisters[0] / 10.0;
             h = holdingRegisters[1] / 10.0;
-            Serial.printf("TZ-THT02 [messageID]: %d | [TEMP]: %.1f, [HUMI]: %.1f\n", messageID, t, h);
+
+            DebugSerial.printf("TZ-THT02 [messageID]: %d | [TEMP]: %.1f, [HUMI]: %.1f\n", messageID, t, h);
 
             // // Sent to Blynk
             // Blynk.virtualWrite(V0, t);
@@ -182,55 +221,88 @@ void getSensorData()
 
             break;
         }
+
         else
         {
-            Serial.println("[MODBUS] Cannot Read Holding Resisters...");
-            if (modbus.getTimeoutFlag())
-            {
-                Serial.println("TimeOut");
-            }
-            if (modbus.getExceptionResponse() > 0)
-            {
-                Serial.print("getExceptionResponse: ");
-                Serial.println(modbus.getExceptionResponse());
-            }
+            DebugSerial.println("[MODBUS] Cannot Read Holding Resisters...");
 
             delay(5000);
         }
     }
 #endif
 
-#if defined(MODBUS_READ_INPUT_REGISTERS) // 0x04
+#if defined(RK520_02) // 0x03
+
+    while (true)
+    {
+        // RK520_02: temp, humi, ec
+        modbus_result = modbus.readHoldingRegisters(READ_START_ADDRESS, READ_QUANTITY); // 0x03
+
+        if (modbus_result == modbus.ku8MBSuccess)
+        {
+            holdingRegisters[0] = modbus.getResponseBuffer(0);
+            holdingRegisters[1] = modbus.getResponseBuffer(1);
+            holdingRegisters[2] = modbus.getResponseBuffer(2);
+
+            t = holdingRegisters[0] / 10.0;
+            h = holdingRegisters[1] / 10.0;
+            ec = holdingRegisters[2] / 1000;
+
+            DebugSerial.printf("RK520-02 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [EC]: %.3f\n", messageID, t, h, ec);
+
+            break;
+
+            // // Sent to Blynk
+            // Blynk.virtualWrite(V0, t);
+            // Blynk.virtualWrite(V1, h);
+            // Blynk.virtualWrite(V2, ec);
+        }
+
+        else
+        {
+            DebugSerial.println("[MODBUS] Cannot Read Holding Resisters...");
+
+            delay(5000);
+        }
+    }
+
+#endif
+
+#if defined(CONOTEC_CNT_TM100) // 0x04
 
     while (true)
     {
         // CONOTEC CNT-TM100: no ec, has errbit
-        if (modbus.readInputRegisters(10, 0, inputRegisters, 3)) // 0x04
+        modbus_result = modbus.readInputRegisters(READ_START_ADDRESS, READ_QUANTITY); // 0x04
+
+        if (modbus_result == modbus.ku8MBSuccess)
         {
+            inputRegisters[0] = modbus.getResponseBuffer(0);
+            inputRegisters[1] = modbus.getResponseBuffer(1);
+            inputRegisters[2] = modbus.getResponseBuffer(2);
+
             t = inputRegisters[0] / 10.0;
             h = inputRegisters[1] / 10.0;
             errBit = inputRegisters[2];
-            Serial.printf("RK520-02 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [ErrBit]: %d\n", messageID, t, h, errBit);
 
-            if (!errBit)
+            DebugSerial.printf("CNT-TM100 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [ErrBit]: %d\n", messageID, t, h, errBit);
+
+            if (errBit)
             {
-                Serial.println("Sensor Open ERROR!!!");
+                DebugSerial.println("Sensor Open ERROR!!!");
             }
 
             break;
+
+            // // Sent to Blynk
+            // Blynk.virtualWrite(V0, t);
+            // Blynk.virtualWrite(V1, h);
+            // Blynk.virtualWrite(V2, errBit);
         }
+
         else
         {
-            Serial.println("[MODBUS] Cannot Read Holding Resisters...");
-            if (modbus.getTimeoutFlag())
-            {
-                Serial.println("TimeOut");
-            }
-            if (modbus.getExceptionResponse() > 0)
-            {
-                Serial.print("getExceptionResponse: ");
-                Serial.println(modbus.getExceptionResponse());
-            }
+            DebugSerial.println("[MODBUS] Cannot Read Input Resisters...");
 
             delay(5000);
         }
@@ -499,6 +571,17 @@ INFO:
 #endif
     }
 
+    /* 7 :Detach Network */
+    if (TYPE1SC.setCFUN(0) == 0)
+    {
+        DebugSerial.println("detach Network!!!");
+#if defined(USE_LCD)
+        u8x8log.print("detach Network!!!\n");
+#endif
+    }
+
+    delay(10000); // Detach Setup Time : 10sec
+
 #endif
 }
 
@@ -507,20 +590,20 @@ void initSPIFFS()
 {
     if (!SPIFFS.begin(true))
     {
-        Serial.println("An error has occurred while mounting SPIFFS");
+        DebugSerial.println("An error has occurred while mounting SPIFFS");
     }
-    Serial.println("SPIFFS mounted successfully");
+    DebugSerial.println("SPIFFS mounted successfully");
 }
 
 // Read File from SPIFFS
 String readFile(fs::FS &fs, const char *path)
 {
-    Serial.printf("Reading file: %s\r\n", path);
+    DebugSerial.printf("Reading file: %s\r\n", path);
 
     File file = fs.open(path);
     if (!file || file.isDirectory())
     {
-        Serial.println("- failed to open file for reading");
+        DebugSerial.println("- failed to open file for reading");
         return String();
     }
 
@@ -536,21 +619,21 @@ String readFile(fs::FS &fs, const char *path)
 // Write file to SPIFFS
 void writeFile(fs::FS &fs, const char *path, const char *message)
 {
-    Serial.printf("Writing file: %s\r\n", path);
+    DebugSerial.printf("Writing file: %s\r\n", path);
 
     File file = fs.open(path, FILE_WRITE);
     if (!file)
     {
-        Serial.println("- failed to open file for writing");
+        DebugSerial.println("- failed to open file for writing");
         return;
     }
     if (file.print(message))
     {
-        Serial.println("- file written");
+        DebugSerial.println("- file written");
     }
     else
     {
-        Serial.println("- write failed");
+        DebugSerial.println("- write failed");
     }
 }
 
@@ -558,7 +641,7 @@ void writeFile(fs::FS &fs, const char *path, const char *message)
 // {
 //     if (camId == "" || slaveMAC == "" || capturePeriod == "")
 //     {
-//         Serial.println("Undefined Cam ID or slaveMac or Capture Period.");
+//         DebugSerial.println("Undefined Cam ID or slaveMac or Capture Period.");
 //         return false;
 //     }
 //     return true;
@@ -574,13 +657,13 @@ void writeFile(fs::FS &fs, const char *path, const char *message)
 //         bool res = modbus.readHoldingRegisters(1, 0, holdingRegisters, 2);
 //         if (res)
 //         {
-//             Serial.println("modsucces");
+//             DebugSerial.println("modsucces");
 //             temper = (float)(holdingRegisters[0] / 10);
 //             humi = (float)(holdingRegisters[1] / 10.0f);
-//             Serial.print("Temper:");
-//             Serial.print(temper);
-//             Serial.print("Humi:");
-//             Serial.println(humi);
+//             DebugSerial.print("Temper:");
+//             DebugSerial.print(temper);
+//             DebugSerial.print("Humi:");
+//             DebugSerial.println(humi);
 
 //             int gval = map(temper, -30, 120, -30, 220);
 //             if (gval < 0)
@@ -596,27 +679,27 @@ void writeFile(fs::FS &fs, const char *path, const char *message)
 //             myNex.writeStr("t3.txt", String(humi));
 
 //             sprintf(buff, "&%3.1f&%3.1f&", temper, humi);
-//             Serial.println(buff);
+//             DebugSerial.println(buff);
 //             Udp.beginPacket(IP_Remote, 11000);
 //             Udp.write((const uint8_t *)buff, 50);
 //             Udp.endPacket();
 //         }
 //         else
 //         {
-//             Serial.println("modfail");
+//             DebugSerial.println("modfail");
 //             if (modbus.getTimeoutFlag())
 //             {
-//                 Serial.println("TimeOut");
+//                 DebugSerial.println("TimeOut");
 //             }
 //             if (modbus.getExceptionResponse() > 0)
 //             {
-//                 Serial.println(modbus.getExceptionResponse());
+//                 DebugSerial.println(modbus.getExceptionResponse());
 //             }
 //         }
 
 //         Count = random(-30, 120);
 //         myNex.writeStr("t2.txt", String(Count));
-//         Serial.println("Count=" + String(Count));
+//         DebugSerial.println("Count=" + String(Count));
 
 //         delay(5000);
 //     }
@@ -657,13 +740,13 @@ void setup()
     // if (!isWMConfigDefined())
     // {
     //     // Connect to Wi-Fi network with SSID and pass
-    //     Serial.println("Setting AP (Access Point)");
+    //     DebugSerial.println("Setting AP (Access Point)");
     //     // NULL sets an open Access Point
     //     WiFi.softAP("Daon Blynk ESP32 Manager", NULL);
 
     //     IPAddress IP = WiFi.softAPIP(); // Software enabled Access Point : 가상 라우터, 가상의 액세스 포인트
-    //     Serial.print("AP IP address: ");
-    //     Serial.println(IP);
+    //     DebugSerial.print("AP IP address: ");
+    //     DebugSerial.println(IP);
 
     //     // Web Server Root URL
     //     // GET방식
@@ -681,8 +764,8 @@ void setup()
     //       // HTTP POST houseId value
     //       if (p->name() == PARAM_INPUT_1) {
     //         houseId = p->value().c_str();
-    //         Serial.print("Cam ID set to: ");
-    //         Serial.println(houseId);
+    //         DebugSerial.print("Cam ID set to: ");
+    //         DebugSerial.println(houseId);
     //         // Write file to save value
     //         writeFile(SPIFFS, houseIdPath, houseId.c_str());
     //       }
@@ -690,8 +773,8 @@ void setup()
     //       if (p->name() == PARAM_INPUT_2)
     //       {
     //         ssid = p->value().c_str();
-    //         Serial.print("SSID set to: ");
-    //         Serial.println(ssid);
+    //         DebugSerial.print("SSID set to: ");
+    //         DebugSerial.println(ssid);
     //         // Write file to save value
     //         writeFile(SPIFFS, ssidPath, ssid.c_str());
     //       }
@@ -699,12 +782,12 @@ void setup()
     //       if (p->name() == PARAM_INPUT_3)
     //       {
     //         pass = p->value().c_str();
-    //         Serial.print("Password set to: ");
-    //         Serial.println(pass);
+    //         DebugSerial.print("Password set to: ");
+    //         DebugSerial.println(pass);
     //         // Write file to save value
     //         writeFile(SPIFFS, passPath, pass.c_str());
     //       }
-    //       Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
+    //       DebugSerial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
     //     }
     //   }
     //   // ESP가 양식 세부 정보를 수신했음을 알 수 있도록 일부 텍스트가 포함된 응답을 send
@@ -717,12 +800,12 @@ void setup()
     // // 설정 완료 후: wifi 연결
     // else
     // {
-    //     Serial.println("LED Panel STARTED");
+    //     DebugSerial.println("LED Panel STARTED");
     //     initLED();
 
     //     initWiFi();
-    //     Serial.print("RSSI: ");
-    //     Serial.println(WiFi.RSSI());
+    //     DebugSerial.print("RSSI: ");
+    //     DebugSerial.println(WiFi.RSSI());
 
     //     configTime(3600 * timeZone, 3600 * summerTime, ntpServer);
     //     printLocalTime();
@@ -817,27 +900,28 @@ void setup()
 #endif
 
     // RS485 Setup
-    modbus.setTimeout(12000);
-    modbus.begin(9600, SERIAL_8N1, rxPin, txPin); // 직렬 전송 설정 (baud, config, rxPin, txPin, invert)
-                                                  // default config : SERIAL_8N1; { 데이터비트 8, 패리티 없음, 1 정지 비트}; E: 짝수 패리티, O: 홀수 패리티
-                                                  // rxPin: 직렬 데이터 수신 핀; txPin: 직렬  데이터 전송 핀 (uint8_t)
+    SerialPort.begin(9600, SERIAL_8N1, rxPin, txPin); // RXD1 : 33, TXD1 : 32
+    modbus.begin(SLAVE_ID, SerialPort);
+
+    // RS485 제어 핀 초기화
+    pinMode(dePin, OUTPUT);
+    pinMode(rePin, OUTPUT);
+
+    // RE 및 DE를 비활성화 상태로 설정 (RE=LOW, DE=LOW)
+    digitalWrite(dePin, LOW);
+    digitalWrite(rePin, LOW);
+
+    // Callbacks allow us to configure the RS485 transceiver correctly
+    // Auto FlowControl - NULL
+    modbus.preTransmission(preTransmission);
+    modbus.postTransmission(postTransmission);
 
 #if defined(USE_WIFI)
 
 #else
     sendSensorData();
 
-    /* 7 :Detach Network */
-    if (TYPE1SC.setCFUN(0) == 0)
-    {
-        DebugSerial.println("detach Network!!!");
-#if defined(USE_LCD)
-        u8x8log.print("detach Network!!!\n");
-#endif
-    }
-    delay(10000); // Detach Setup Time : 10sec
-
-    Serial.println("Going to sleep now");
+    DebugSerial.println("Going to sleep now");
     esp_sleep_enable_timer_wakeup(DEEPSLEEP_PERIOD_SEC * 1000000); // 10min; 1s = 1,000,000us
     esp_deep_sleep_start();
 #endif
@@ -850,18 +934,6 @@ void loop()
     Blynk.run();
     timer.run();
 #else
-    // if (firstRun)
-    // {
-    //     sendSensorData();
-    //     firstRun = false;
-    // }
 
-    // currentMillis = millis();
-    // if (currentMillis - previousMillis >= SCAN_RATE)
-    // {
-    //     previousMillis = currentMillis;
-
-    //     sendSensorData();
-    // }
 #endif
 }
