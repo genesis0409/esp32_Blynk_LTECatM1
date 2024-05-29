@@ -116,7 +116,7 @@ RTC_DATA_ATTR BlynkTimer timer; // 함수 주기적 실행 위한 타이머
 
 #define DEEPSLEEP_PERIOD_SEC 600 // 600초 ESP32 Deep Sleep
 
-#define SCAN_RATE 60000 // 60만: 10분; wifi 센싱 전용
+#define SENSING_PERIOD 60000 // 60만: 10분; wifi 센싱 전용
 
 unsigned long currentMillis = 0;
 unsigned long previousMillis = 0; // Stores last time using Reference time
@@ -867,7 +867,7 @@ void setup()
     // Begin Blynk
     Blynk.begin(auth, "dinfo", "daon7521");
     // 함수 주기 실행
-    timer.setInterval(SCAN_RATE, sendSensorData);
+    timer.setInterval(SENSING_PERIOD, sendSensorData);
 #else
 
     /* Enter a DNS address to get an IP address */
