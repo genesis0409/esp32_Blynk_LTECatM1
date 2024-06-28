@@ -54,9 +54,9 @@ const char *capturePeriodPath = "/capturePeriod.txt";
 // #define USE_LCD
 
 // Choose Sensor ****************************************************************************************
-// #define TZ_THT02          // 0x03
+#define TZ_THT02 // 0x03
 // #define RK520_02          // 0x03
-#define CONOTEC_CNT_TM100 // 0x04
+// #define CONOTEC_CNT_TM100 // 0x04
 // ******************************************************************************************************
 
 // TYPE1SC setting **************************************************************************************
@@ -124,9 +124,9 @@ unsigned long previousMillis = 0; // Stores last time using Reference time
 RTC_DATA_ATTR unsigned int messageID = 0;
 RTC_DATA_ATTR bool errBit; // TM100 센서에러비트; 0:에러없음, 1:센서에러
 
-RTC_DATA_ATTR float ec; // 전기 전도도
 RTC_DATA_ATTR float t;
 RTC_DATA_ATTR float h;
+RTC_DATA_ATTR float ec; // 전기 전도도
 
 // Allocate the JSON document
 RTC_DATA_ATTR JsonDocument doc;
@@ -138,7 +138,7 @@ RTC_DATA_ATTR const uint8_t rePin = 14; // RE
 
 RTC_DATA_ATTR ModbusMaster modbus;
 
-RTC_DATA_ATTR uint8_t modbus_result;
+RTC_DATA_ATTR uint8_t modbus_result = modbus.ku8MBInvalidCRC;
 
 #if defined(TZ_THT02) // 0x03
 #define SLAVE_ID 1
@@ -225,6 +225,8 @@ void getSensorData()
         else
         {
             DebugSerial.println("[MODBUS] Cannot Read Holding Resisters...");
+            DebugSerial.println("modbus result: ");
+            DebugSerial.println(modbus_result);
 
             delay(5000);
         }
@@ -261,6 +263,8 @@ void getSensorData()
         else
         {
             DebugSerial.println("[MODBUS] Cannot Read Holding Resisters...");
+            DebugSerial.println("modbus result: ");
+            DebugSerial.println(modbus_result);
 
             delay(5000);
         }
@@ -303,6 +307,8 @@ void getSensorData()
         else
         {
             DebugSerial.println("[MODBUS] Cannot Read Input Resisters...");
+            DebugSerial.println("modbus result: ");
+            DebugSerial.println(modbus_result);
 
             delay(5000);
         }
@@ -583,12 +589,38 @@ INFO:
     delay(10000); // Detach Setup Time : 10sec
 
 #endif
+
+    // 값 초기화
+    t = 0;
+    h = 0;
+    ec = 0;
+#if defined(TZ_THT02) // 0x03
+                      // 배열의 모든 값을 0으로 초기화
+    for (int i = 0; i < sizeof(holdingRegisters) / sizeof(holdingRegisters[0]); i++)
+    {
+        holdingRegisters[i] = 0;
+    }
+#endif
+#if defined(RK520_02) // 0x03
+                      // 배열의 모든 값을 0으로 초기화
+    for (int i = 0; i < sizeof(holdingRegisters) / sizeof(holdingRegisters[0]); i++)
+    {
+        holdingRegisters[i] = 0;
+    }
+#endif
+#if defined(CONOTEC_CNT_TM100) // 0x04
+    // 배열의 모든 값을 0으로 초기화
+    for (int i = 0; i < sizeof(inputRegisters) / sizeof(inputRegisters[0]); i++)
+    {
+        holdingRegisters[i] = 0;
+    }
+#endif
 }
 
 // Initialize SPIFFS
 void initSPIFFS()
 {
-    if (!SPIFFS.begin(true))
+    if (!SPIFFS.begin())
     {
         DebugSerial.println("An error has occurred while mounting SPIFFS");
     }
@@ -899,17 +931,17 @@ void setup()
 
 #endif
 
-    // RS485 Setup
-    SerialPort.begin(9600, SERIAL_8N1, rxPin, txPin); // RXD1 : 33, TXD1 : 32
-    modbus.begin(SLAVE_ID, SerialPort);
-
-    // RS485 제어 핀 초기화
+    // RS485 제어 핀 초기화; modbus.begin() 이전 반드시 선언해 주어야!
     pinMode(dePin, OUTPUT);
     pinMode(rePin, OUTPUT);
 
     // RE 및 DE를 비활성화 상태로 설정 (RE=LOW, DE=LOW)
     digitalWrite(dePin, LOW);
     digitalWrite(rePin, LOW);
+
+    // RS485 Setup
+    SerialPort.begin(9600, SERIAL_8N1, rxPin, txPin); // RXD1 : 33, TXD1 : 32
+    modbus.begin(SLAVE_ID, SerialPort);
 
     // Callbacks allow us to configure the RS485 transceiver correctly
     // Auto FlowControl - NULL
