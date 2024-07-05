@@ -902,8 +902,8 @@ void setup()
     timer.setInterval(SENSING_PERIOD, sendSensorData);
 #else
 
+    int ipErrCount = 0;
     /* Enter a DNS address to get an IP address */
-
     while (1)
     {
 
@@ -921,9 +921,20 @@ void setup()
         }
         else
         {
-            DebugSerial.println("Blynk IP Address Error!!!");
+            if (ipErrCount++ > 60)
+            {
+                DebugSerial.println("Cannot Connect to Blynk... ESP Restart.");
+                ESP.restart();
+            }
+            DebugSerial.print("Blynk IP Address Error!!!");
+            DebugSerial.print("; count: ");
+            DebugSerial.println(ipErrCount);
 #if defined(USE_LCD)
-            u8x8log.print("Blynk IP Address Error!!!\n");
+            u8x8log.print("Blynk IP Address Error!!!");
+            u8x8log.print("; count: ");
+            u8x8log.print(ipErrCount);
+            u8x8log.print("\n");
+
 #endif
         }
         delay(2000);
