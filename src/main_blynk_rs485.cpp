@@ -69,7 +69,8 @@ const char *capturePeriodPath = "/capturePeriod.txt";
 
 #define DebugSerial Serial
 HardwareSerial SerialPort(1); // use ESP32 UART1
-#define M1Serial Serial2      // ESP32
+HardwareSerial M1Serial(2);   // use ESP32 UART2, Arduino ESP32 v3
+// #define M1Serial Serial2      // ESP32, Arduino ESP32 v3 업데이트로 미사용
 
 String APN = "simplio.apn";
 
@@ -763,7 +764,8 @@ void setup()
 #endif
 
     // put your setup code here, to run once:
-    M1Serial.begin(SERIAL_BR);
+    // M1Serial.begin(SERIAL_BR);  // ESP32, Arduino ESP32 v3 업데이트로 미사용
+    M1Serial.begin(SERIAL_BR, SERIAL_8N1, 16, 17); // Arduino ESP32 v3
     DebugSerial.begin(SERIAL_BR);
 
     //****************************************************************************************************************************************
