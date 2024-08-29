@@ -1,3 +1,36 @@
 {
-  "C_Cpp.errorSquiggles": "disabled"
+  "C_Cpp.errorSquiggles": "disabled",
+  "cSpell.words": [
+    "APIP",
+    "Blynk",
+    "CCLK",
+    "CONOTEC",
+    "daon",
+    "DEEPSLEEP",
+    "errbit",
+    "espnow",
+    "Farmtalk",
+    "fullcharge",
+    "Godo",
+    "GPIO",
+    "Haimil",
+    "hivemq",
+    "Humi",
+    "modbus",
+    "Modbus",
+    "mqtt",
+    "pppos",
+    "PROGMEM",
+    "rsrp",
+    "rsrq",
+    "rssi",
+    "simplio",
+    "sinr",
+    "strtime",
+    "Teros",
+    "timeinfo",
+    "vout",
+    "wifimanager",
+    "Woosung"
+  ]
 }
