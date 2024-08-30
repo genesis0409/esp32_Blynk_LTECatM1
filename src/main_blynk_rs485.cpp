@@ -48,15 +48,16 @@ const char *slaveMACPath = "/slaveMAC.txt";
 const char *capturePeriodPath = "/capturePeriod.txt";
 
 // Use WIFI? ********************************************************************************************
-// #define USE_WIFI // To disable, Use HTTP Request
+#define USE_WIFI // To disable, Use HTTP Request
 
 // Use LCD? *********************************************************************************************
 // #define USE_LCD
 
 // Choose Sensor ****************************************************************************************
-#define TZ_THT02 // 0x03
+// #define TZ_THT02 // 0x03
 // #define RK520_02          // 0x03
 // #define CONOTEC_CNT_TM100 // 0x04
+#define CONOTEC_CNT_WJ24 // 0x04
 // ******************************************************************************************************
 
 // TYPE1SC setting **************************************************************************************
@@ -74,7 +75,12 @@ HardwareSerial M1Serial(2);   // use ESP32 UART2, Arduino ESP32 v3
 
 String APN = "simplio.apn";
 
+#if defined(USE_WIFI)
+
+#else
 RTC_DATA_ATTR TYPE1SC TYPE1SC(M1Serial, DebugSerial, PWR_PIN, RST_PIN, WAKEUP_PIN);
+#endif
+
 #if defined(USE_LCD)
 RTC_DATA_ATTR U8X8_SSD1306_128X64_NONAME_HW_I2C u8x8(/* reset=*/U8X8_PIN_NONE);
 #define U8LOG_WIDTH 16
@@ -123,11 +129,12 @@ unsigned long currentMillis = 0;
 unsigned long previousMillis = 0; // Stores last time using Reference time
 
 RTC_DATA_ATTR unsigned int messageID = 0;
-RTC_DATA_ATTR bool errBit; // TM100 센서에러비트; 0:에러없음, 1:센서에러
+RTC_DATA_ATTR bool errBit; // CONOTEC 센서에러비트; 0:에러없음, 1:센서에러
 
 RTC_DATA_ATTR float t;
 RTC_DATA_ATTR float h;
-RTC_DATA_ATTR float ec; // 전기 전도도
+RTC_DATA_ATTR float ec;             // 전기 전도도
+RTC_DATA_ATTR bool isRainy = false; // 비
 
 // Allocate the JSON document
 RTC_DATA_ATTR JsonDocument doc;
@@ -145,19 +152,21 @@ RTC_DATA_ATTR uint8_t modbus_result = modbus.ku8MBInvalidCRC;
 #define SLAVE_ID 1
 #define READ_START_ADDRESS 0
 #define READ_QUANTITY 2
-RTC_DATA_ATTR uint16_t holdingRegisters[2] = {0, 0};
 #endif
 #if defined(RK520_02) // 0x03
 #define SLAVE_ID 1
 #define READ_START_ADDRESS 0
 #define READ_QUANTITY 3
-RTC_DATA_ATTR uint16_t holdingRegisters[3] = {0, 0, 0};
 #endif
 #if defined(CONOTEC_CNT_TM100) // 0x04
-#define SLAVE_ID 10
+#define SLAVE_ID 10            // 0x10 사전 세팅 필요
 #define READ_START_ADDRESS 0
 #define READ_QUANTITY 3
-RTC_DATA_ATTR uint16_t inputRegisters[3] = {0, 0, 0};
+#endif
+#if defined(CONOTEC_CNT_WJ24) // 0x04
+#define SLAVE_ID 2            // 0x10 사전 세팅 필요
+#define READ_START_ADDRESS_CONOTEC_CNT_WJ24 0x64
+#define READ_QUANTITY_CONOTEC_CNT_WJ24 3
 #endif
 
 // 메소드 선언부 *******************************************************************************************
@@ -170,7 +179,7 @@ void sendSensorData();
 void initSPIFFS();                                                 // Initialize SPIFFS
 String readFile(fs::FS &fs, const char *path);                     // Read File from SPIFFS
 void writeFile(fs::FS &fs, const char *path, const char *message); // Write file to SPIFFS
-bool isCamConfigDefined();                                         // Is Cam Configuration Defiend?
+bool isCamConfigDefined();                                         // Is Cam Configuration Defined?
 
 RTC_DATA_ATTR bool allowsLoop = false; // loop() DO or NOT
 RTC_DATA_ATTR bool firstRun = true;
@@ -202,117 +211,150 @@ void postTransmission()
 void getSensorData()
 {
 #if defined(TZ_THT02) // 0x03
-    while (true)
+
+    modbus_result = modbus.readHoldingRegisters(READ_START_ADDRESS, READ_QUANTITY); // 0x03
+
+    if (modbus_result == modbus.ku8MBSuccess)
     {
-        modbus_result = modbus.readHoldingRegisters(READ_START_ADDRESS, READ_QUANTITY); // 0x03
+        t = float(modbus.getResponseBuffer(0) / 10.00F);
+        h = float(modbus.getResponseBuffer(1) / 10.00F);
 
-        if (modbus_result == modbus.ku8MBSuccess)
-        {
-            holdingRegisters[0] = modbus.getResponseBuffer(0);
-            holdingRegisters[1] = modbus.getResponseBuffer(1);
+        DebugSerial.printf("TZ-THT02 [messageID]: %d | [TEMP]: %.1f, [HUMI]: %.1f\n", messageID, t, h);
 
-            t = holdingRegisters[0] / 10.0;
-            h = holdingRegisters[1] / 10.0;
+#if defined(USE_WIFI)
+        // Send to Blynk
+        Blynk.virtualWrite(V0, t);
+        Blynk.virtualWrite(V1, h);
+#endif
+    }
 
-            DebugSerial.printf("TZ-THT02 [messageID]: %d | [TEMP]: %.1f, [HUMI]: %.1f\n", messageID, t, h);
-
-            // // Sent to Blynk
-            // Blynk.virtualWrite(V0, t);
-            // Blynk.virtualWrite(V1, h);
-
-            break;
-        }
-
-        else
-        {
-            DebugSerial.println("[MODBUS] Cannot Read Holding Resisters...");
-            DebugSerial.println("modbus result: ");
-            DebugSerial.println(modbus_result);
-
-            delay(5000);
-        }
+    else
+    {
+        DebugSerial.println("[MODBUS] Cannot Read Holding Resisters...");
+        DebugSerial.println("modbus result: ");
+        DebugSerial.println(modbus_result);
     }
 #endif
 
 #if defined(RK520_02) // 0x03
 
-    while (true)
+    // RK520_02: temp, humi, ec
+    modbus_result = modbus.readHoldingRegisters(READ_START_ADDRESS, READ_QUANTITY); // 0x03
+
+    if (modbus_result == modbus.ku8MBSuccess)
     {
-        // RK520_02: temp, humi, ec
-        modbus_result = modbus.readHoldingRegisters(READ_START_ADDRESS, READ_QUANTITY); // 0x03
+        t = float(modbus.getResponseBuffer(0) / 10.00F);
+        h = float(modbus.getResponseBuffer(1) / 10.00F);
+        ec = float(modbus.getResponseBuffer(2) / 1000.00F);
 
-        if (modbus_result == modbus.ku8MBSuccess)
-        {
-            holdingRegisters[0] = modbus.getResponseBuffer(0);
-            holdingRegisters[1] = modbus.getResponseBuffer(1);
-            holdingRegisters[2] = modbus.getResponseBuffer(2);
+        DebugSerial.printf("RK520-02 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [EC]: %.3f\n", messageID, t, h, ec);
 
-            t = holdingRegisters[0] / 10.0;
-            h = holdingRegisters[1] / 10.0;
-            ec = holdingRegisters[2] / 1000;
+#if defined(USE_WIFI)
+        // Send to Blynk
+        Blynk.virtualWrite(V0, t);
+        Blynk.virtualWrite(V1, h);
+        Blynk.virtualWrite(V2, ec);
+#endif
+    }
 
-            DebugSerial.printf("RK520-02 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [EC]: %.3f\n", messageID, t, h, ec);
-
-            break;
-
-            // // Sent to Blynk
-            // Blynk.virtualWrite(V0, t);
-            // Blynk.virtualWrite(V1, h);
-            // Blynk.virtualWrite(V2, ec);
-        }
-
-        else
-        {
-            DebugSerial.println("[MODBUS] Cannot Read Holding Resisters...");
-            DebugSerial.println("modbus result: ");
-            DebugSerial.println(modbus_result);
-
-            delay(5000);
-        }
+    else
+    {
+        DebugSerial.println("[MODBUS] Cannot Read Holding Resisters...");
+        DebugSerial.println("modbus result: ");
+        DebugSerial.println(modbus_result);
     }
 
 #endif
 
 #if defined(CONOTEC_CNT_TM100) // 0x04
 
-    while (true)
+    // CONOTEC CNT-TM100: no ec, has errbit
+    modbus_result = modbus.readInputRegisters(READ_START_ADDRESS, READ_QUANTITY); // 0x04
+
+    if (modbus_result == modbus.ku8MBSuccess)
     {
-        // CONOTEC CNT-TM100: no ec, has errbit
-        modbus_result = modbus.readInputRegisters(READ_START_ADDRESS, READ_QUANTITY); // 0x04
+        t = float(modbus.getResponseBuffer(0) / 10.00F);
+        h = float(modbus.getResponseBuffer(1) / 10.00F);
+        errBit = modbus.getResponseBuffer(2);
 
-        if (modbus_result == modbus.ku8MBSuccess)
+        DebugSerial.printf("CNT-TM100 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [ErrBit]: %d\n", messageID, t, h, errBit);
+
+        if (errBit)
         {
-            inputRegisters[0] = modbus.getResponseBuffer(0);
-            inputRegisters[1] = modbus.getResponseBuffer(1);
-            inputRegisters[2] = modbus.getResponseBuffer(2);
-
-            t = inputRegisters[0] / 10.0;
-            h = inputRegisters[1] / 10.0;
-            errBit = inputRegisters[2];
-
-            DebugSerial.printf("CNT-TM100 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [ErrBit]: %d\n", messageID, t, h, errBit);
-
-            if (errBit)
-            {
-                DebugSerial.println("Sensor Open ERROR!!!");
-            }
-
-            break;
-
-            // // Sent to Blynk
-            // Blynk.virtualWrite(V0, t);
-            // Blynk.virtualWrite(V1, h);
-            // Blynk.virtualWrite(V2, errBit);
+            DebugSerial.println("Sensor Open ERROR!!!");
         }
 
+#if defined(USE_WIFI)
+        // Send to Blynk
+        Blynk.virtualWrite(V0, t);
+        Blynk.virtualWrite(V1, h);
+        // Blynk.virtualWrite(V2, errBit);
+#endif
+    }
+
+    else
+    {
+        DebugSerial.println("[MODBUS] Cannot Read Input Resisters...");
+        DebugSerial.println("modbus result: ");
+        DebugSerial.println(modbus_result);
+    }
+
+#endif
+
+#if defined(CONOTEC_CNT_WJ24) // 0x04
+
+    // CONOTEC CNT-WJ24: 감우 및 온도센서
+    modbus_result = modbus.readInputRegisters(READ_START_ADDRESS_CONOTEC_CNT_WJ24, READ_QUANTITY_CONOTEC_CNT_WJ24); // 0x04
+
+    if (modbus_result == modbus.ku8MBSuccess)
+    {
+        // 감우센서 온습도
+        float temp_CNT_WJ24 = float(modbus.getResponseBuffer(0) / 10.00F);
+        float humi_CNT_WJ24 = float(modbus.getResponseBuffer(1)); // 정수
+
+        int rainDetectBit = modbus.getResponseBuffer(2);
+        // 각 판의 비 감지 상태
+        bool plate1Detected = rainDetectBit & (1 << 7);
+        bool plate2Detected = rainDetectBit & (1 << 8);
+        bool plate3Detected = rainDetectBit & (1 << 9);
+
+        errBit = rainDetectBit & (1 << 10);          // 제품 이상
+        bool err_ER1Bit = rainDetectBit & (1 << 12); // ER1 발생 (노이즈, 서지에 의한 메모리오류 -> 공장초기화)
+
+        // 3면의 감지판에서 모두 비가 감지되는지 확인
+        if (plate1Detected && plate2Detected && plate3Detected)
+        {
+            isRainy = true; // 비 감지됨
+        }
         else
         {
-            DebugSerial.println("[MODBUS] Cannot Read Input Resisters...");
-            DebugSerial.println("modbus result: ");
-            DebugSerial.println(modbus_result);
-
-            delay(5000);
+            isRainy = false; // 비 미감지
         }
+
+        DebugSerial.printf("CNT-WJ24 [messageID]: %d | [isRainy]: %s, [TEMP]: %.1f, [HUMI]: %.1f\n", messageID, isRainy ? "Rainy" : "X", temp_CNT_WJ24, humi_CNT_WJ24);
+
+        if (errBit)
+        {
+            DebugSerial.println("CNT-WJ24 ERROR!!!");
+        }
+        if (err_ER1Bit)
+        {
+            DebugSerial.println("ER1 ERROR!!!");
+        }
+
+#if defined(USE_WIFI)
+        // Send to Blynk
+        Blynk.virtualWrite(V0, temp_CNT_WJ24);
+        Blynk.virtualWrite(V1, humi_CNT_WJ24);
+        Blynk.virtualWrite(V2, isRainy ? 1 : 0);
+#endif
+    }
+
+    else
+    {
+        DebugSerial.println("[MODBUS] Cannot Read Input Resisters...");
+        DebugSerial.println("modbus result: ");
+        DebugSerial.println(modbus_result);
     }
 
 #endif
@@ -325,10 +367,7 @@ void sendSensorData()
     getSensorData();
 
 #if defined(USE_WIFI)
-    // Sent to Blynk
-    Blynk.virtualWrite(V0, t);
-    Blynk.virtualWrite(V1, h);
-    Blynk.virtualWrite(V2, ec);
+
 #else
 
     // Use TCP Socket
@@ -595,27 +634,6 @@ INFO:
     t = 0;
     h = 0;
     ec = 0;
-#if defined(TZ_THT02) // 0x03
-                      // 배열의 모든 값을 0으로 초기화
-    for (int i = 0; i < sizeof(holdingRegisters) / sizeof(holdingRegisters[0]); i++)
-    {
-        holdingRegisters[i] = 0;
-    }
-#endif
-#if defined(RK520_02) // 0x03
-                      // 배열의 모든 값을 0으로 초기화
-    for (int i = 0; i < sizeof(holdingRegisters) / sizeof(holdingRegisters[0]); i++)
-    {
-        holdingRegisters[i] = 0;
-    }
-#endif
-#if defined(CONOTEC_CNT_TM100) // 0x04
-    // 배열의 모든 값을 0으로 초기화
-    for (int i = 0; i < sizeof(inputRegisters) / sizeof(inputRegisters[0]); i++)
-    {
-        holdingRegisters[i] = 0;
-    }
-#endif
 }
 
 // Initialize SPIFFS
@@ -741,7 +759,11 @@ void writeFile(fs::FS &fs, const char *path, const char *message)
 void setup()
 {
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // disable brownout detector
-    /* CATM1 Modem PowerUp sequence */
+
+#if defined(USE_WIFI)
+    DebugSerial.begin(SERIAL_BR);
+#else
+    /* CAT.M1 Modem PowerUp sequence */
     pinMode(PWR_PIN, OUTPUT);
     pinMode(RST_PIN, OUTPUT);
     pinMode(WAKEUP_PIN, OUTPUT);
@@ -867,7 +889,7 @@ void setup()
 #endif
     }
 
-    /* Network Regsistraiton Check */
+    /* Network Registration Check */
     while (TYPE1SC.canConnect() != 0)
     {
         DebugSerial.println("Network not Ready !!!");
@@ -896,13 +918,6 @@ void setup()
 #if defined(USE_LCD)
     u8x8log.print("TYPE1SC Module Ready!!!\n");
 #endif
-
-#if defined(USE_WIFI)
-    // Begin Blynk
-    Blynk.begin(auth, "dinfo", "daon7521");
-    // 함수 주기 실행
-    timer.setInterval(SENSING_PERIOD, sendSensorData);
-#else
 
     int ipErrCount = 0;
     /* Enter a DNS address to get an IP address */
@@ -961,8 +976,15 @@ void setup()
     modbus.preTransmission(preTransmission);
     modbus.postTransmission(postTransmission);
 
-#if defined(USE_WIFI)
+    DebugSerial.println("Modbus Settings Done.");
 
+#if defined(USE_WIFI)
+    // Begin Blynk
+    Blynk.begin(auth, WIFI_SSID, WIFI_PASS);
+    // 함수 주기 실행
+    timer.setInterval(SENSING_PERIOD, getSensorData);
+
+    DebugSerial.println("Blynk WiFi Settings Done.");
 #else
     sendSensorData();
 
