@@ -181,6 +181,16 @@ String readFile(fs::FS &fs, const char *path);                     // Read File 
 void writeFile(fs::FS &fs, const char *path, const char *message); // Write file to SPIFFS
 bool isCamConfigDefined();                                         // Is Cam Configuration Defined?
 
+void reconnectWifi(); // wifi 연결 복구 함수
+
+// 재시도 관련 설정
+const int maxRetries = 3;       // 최대 재시도 횟수
+static int wifiRetryCount = 0;  // WiFi 재연결 시도 횟수 저장
+static int blynkRetryCount = 0; // Blynk 재연결 시도 횟수 저장
+
+unsigned long reconnectPreviousMillis = 0; // 이전 시간 저장
+const unsigned long interval = 100;        // WiFi 상태 체크 주기: 0.1s
+
 RTC_DATA_ATTR bool allowsLoop = false; // loop() DO or NOT
 RTC_DATA_ATTR bool firstRun = true;
 
@@ -756,6 +766,98 @@ void writeFile(fs::FS &fs, const char *path, const char *message)
 //     }
 // }
 
+void reconnectWifi()
+{
+    // WiFi 연결 상태 확인
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        unsigned long currentMillis = millis(); // 현재 시간
+        if (currentMillis - reconnectPreviousMillis >= interval)
+        {
+            reconnectPreviousMillis = currentMillis;
+            Serial.println("Reconnecting to WiFi...");
+            WiFi.disconnect();                // 기존 연결 끊기
+            WiFi.begin(WIFI_SSID, WIFI_PASS); // WiFi 재연결 시도
+
+            unsigned long startAttemptTime = millis(); // 타임아웃 시작 시간
+            const unsigned long timeout = 10000;       // 10초 타임아웃
+
+            // 비동기 타임아웃 처리
+            while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < timeout)
+            {
+                // delay() 대신 매 루프에서 확인
+                if (millis() - reconnectPreviousMillis >= interval)
+                {
+                    reconnectPreviousMillis = millis();
+                    Serial.print(".");
+                }
+            }
+
+            if (WiFi.status() == WL_CONNECTED)
+            {
+                Serial.println("\nWiFi ReConnected.");
+                Serial.println(WiFi.localIP());
+                wifiRetryCount = 0; // WiFi 연결 성공 시 재시도 횟수 초기화
+            }
+            else
+            {
+                Serial.println("\nFailed to connect to WiFi within timeout.");
+                wifiRetryCount++;
+                if (wifiRetryCount >= maxRetries)
+                {
+                    Serial.println("Max WiFi retries reached. Restarting ESP...");
+                    ESP.restart(); // 재시도 횟수 초과 시 보드 재시작
+                }
+            }
+        }
+    }
+    else
+    {
+        Serial.println("WiFi OK");
+        wifiRetryCount = 0; // WiFi가 연결되어 있으면 재시도 횟수 초기화
+    }
+
+    // Blynk 연결 상태 확인
+    if (!Blynk.connected())
+    {
+        Serial.println("Lost Blynk server connection");
+        unsigned long startAttemptTime = millis(); // 타임아웃 시작 시간
+        const unsigned long blynkTimeout = 10000;  // Blynk 타임아웃 10초
+
+        while (!Blynk.connected() && millis() - startAttemptTime < blynkTimeout)
+        {
+            if (millis() - reconnectPreviousMillis >= interval)
+            {
+                reconnectPreviousMillis = millis();
+                Blynk.connect(); // Blynk 재연결 시도
+                Serial.print(".");
+            }
+        }
+
+        if (Blynk.connected())
+        {
+            Serial.println("\nBlynk Connected.");
+            blynkRetryCount = 0; // Blynk 연결 성공 시 재시도 횟수 초기화
+        }
+        else
+        {
+            Serial.println("\nFailed to connect to Blynk server.");
+            blynkRetryCount++;
+            if (blynkRetryCount >= maxRetries)
+            {
+                Serial.println("Max Blynk retries reached. Considering further actions...");
+                // 여기서 추가적인 처리 로직을 넣을 수 있습니다.
+                // 예: 경고 메시지 출력, 장비 재시작 등
+            }
+        }
+    }
+    else
+    {
+        Serial.println("Blynk OK");
+        blynkRetryCount = 0; // Blynk가 연결되어 있으면 재시도 횟수 초기화
+    }
+}
+
 void setup()
 {
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // disable brownout detector
@@ -983,6 +1085,7 @@ void setup()
     Blynk.begin(auth, WIFI_SSID, WIFI_PASS);
     // 함수 주기 실행
     timer.setInterval(SENSING_PERIOD, getSensorData);
+    timer.setInterval(5 * 60 * 1000, reconnectWifi); // 5분마다 wifi 상태 점검 및 복구 시도
 
     DebugSerial.println("Blynk WiFi Settings Done.");
 #else
