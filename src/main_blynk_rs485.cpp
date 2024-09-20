@@ -331,8 +331,9 @@ void getSensorData()
         errBit = rainDetectBit & (1 << 10);          // 제품 이상
         bool err_ER1Bit = rainDetectBit & (1 << 12); // ER1 발생 (노이즈, 서지에 의한 메모리오류 -> 공장초기화)
 
-        // 3면의 감지판에서 모두 비가 감지되는지 확인
-        if (plate1Detected && plate2Detected && plate3Detected)
+        // 최소 두 개의 감지판에서 비가 감지되는지 확인
+        int detectedCount = plate1Detected + plate2Detected + plate3Detected;
+        if (detectedCount >= 2)
         {
             isRainy = true; // 비 감지됨
         }
