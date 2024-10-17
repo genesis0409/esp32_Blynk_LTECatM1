@@ -58,6 +58,7 @@ const char *capturePeriodPath = "/capturePeriod.txt";
 // #define RK520_02          // 0x03
 // #define CONOTEC_CNT_TM100 // 0x04
 #define CONOTEC_CNT_WJ24 // 0x04
+// #define TEST_HTTP // Test Http Messages
 // ******************************************************************************************************
 
 // TYPE1SC setting **************************************************************************************
@@ -99,7 +100,7 @@ RTC_DATA_ATTR int recvSize;
 /* EXT_ANT_ON 0 : Use an internal antenna.
  * EXT_ANT_ON 1 : Use an external antenna.
  */
-#define EXT_ANT_ON 1
+#define EXT_ANT_ON 0
 void extAntenna();
 
 // Blynk setting ****************************************************************************************
@@ -167,6 +168,9 @@ RTC_DATA_ATTR uint8_t modbus_result = modbus.ku8MBInvalidCRC;
 #define SLAVE_ID 2            // 0x10 사전 세팅 필요
 #define READ_START_ADDRESS_CONOTEC_CNT_WJ24 0x64
 #define READ_QUANTITY_CONOTEC_CNT_WJ24 3
+#endif
+#if defined(TEST_HTTP) // Test Http Messages
+#define SLAVE_ID 1
 #endif
 
 // 메소드 선언부 *******************************************************************************************
@@ -319,8 +323,8 @@ void getSensorData()
     if (modbus_result == modbus.ku8MBSuccess)
     {
         // 감우센서 온습도
-        float temp_CNT_WJ24 = float(modbus.getResponseBuffer(0) / 10.00F);
-        float humi_CNT_WJ24 = float(modbus.getResponseBuffer(1)); // 정수
+        t = float(modbus.getResponseBuffer(0) / 10.00F);
+        h = float(modbus.getResponseBuffer(1)); // 정수
 
         int rainDetectBit = modbus.getResponseBuffer(2);
         // 각 판의 비 감지 상태
@@ -342,7 +346,7 @@ void getSensorData()
             isRainy = false; // 비 미감지
         }
 
-        DebugSerial.printf("CNT-WJ24 [messageID]: %d | [isRainy]: %s, [TEMP]: %.1f, [HUMI]: %.1f\n", messageID, isRainy ? "Rainy" : "X", temp_CNT_WJ24, humi_CNT_WJ24);
+        DebugSerial.printf("CNT-WJ24 [messageID]: %d | [isRainy]: %s, [TEMP]: %.1f, [HUMI]: %.1f\n", messageID, isRainy ? "Rainy" : "X", t, h);
 
         if (errBit)
         {
@@ -355,8 +359,8 @@ void getSensorData()
 
 #if defined(USE_WIFI)
         // Send to Blynk
-        Blynk.virtualWrite(V0, temp_CNT_WJ24);
-        Blynk.virtualWrite(V1, humi_CNT_WJ24);
+        Blynk.virtualWrite(V0, t);
+        Blynk.virtualWrite(V1, h);
         Blynk.virtualWrite(V2, isRainy ? 1 : 0);
 #endif
     }
@@ -368,6 +372,12 @@ void getSensorData()
         DebugSerial.println(modbus_result);
     }
 
+#endif
+
+#if defined(TEST_HTTP)
+    t = 69.74;
+    h = 44; // 정수
+    DebugSerial.printf("TEST HTTP [messageID]: %d | [TEMP]: %.1f, [HUMI]: %.1f\n", messageID, t, h);
 #endif
 
     messageID++;
@@ -432,7 +442,7 @@ INFO:
     data += "Host: sgp1.blynk.cloud\r\n";
     data += "Connection: keep-alive\r\n\r\n";
 
-    // String data = "https//sgp1.blynk.cloud/external/api/batch/update?token=" BLYNK_AUTH_TOKEN;
+    // String data = "https//sgp1.blynk.cloud/external/api/batch/update?token="BLYNK_AUTH_TOKEN&;
     // data += "v0=" + String(t) + "&" + "v1=" + String(h) + "&" + "v2=" + String(ec);
 
     if (TYPE1SC.socketSend(data.c_str()) == 0)
@@ -476,128 +486,6 @@ INFO:
         u8x8log.print("Recv Fail!!!\n");
 #endif
     }
-
-    // if (doc.isNull())
-    // {
-    //     // blynk에서 기준값 받아오는 로직
-    // }
-
-    //     /* 3-2 :TCP Socket Send Data: Event Message */
-    //     // 온도 경고 알림
-    //     else if (t > UpperLimitTemp)
-    //     {
-    //         String data = "GET /external/api/logEvent";
-    //         data += "?token=" BLYNK_AUTH_TOKEN;
-    //         data += "&code=CODE_HighTempAlert";
-    //         data += "&description=TEMP_WARNING:HOT"; // 앱에서 한글 미지원
-
-    //         data += " HTTP/1.1\r\n";
-    //         data += "Host: sgp1.blynk.cloud\r\n";
-    //         data += "Connection: keep-alive\r\n\r\n";
-
-    //         // String data = "https//sgp1.blynk.cloud/external/api/batch/update?token=" BLYNK_AUTH_TOKEN;
-    //         // data += "v0=" + String(t) + "&" + "v1=" + String(h) + "&" + "v2=" + String(ec);
-
-    //         if (TYPE1SC.socketSend(data.c_str()) == 0)
-    //         {
-    //             DebugSerial.print("[HTTP Send] >> ");
-    //             DebugSerial.println(data);
-    // #if defined(USE_LCD)
-    //             u8x8log.print("[HTTP Send] >> ");
-    //             u8x8log.print(data);
-    //             u8x8log.print("\n");
-    // #endif
-    //         }
-    //         else
-    //         {
-    //             DebugSerial.println("Send Fail!!!");
-    // #if defined(USE_LCD)
-    //             u8x8log.print("Send Fail!!!\n");
-    // #endif
-    //         }
-
-    //         /* 4-2 :TCP Socket Recv Data */
-    //         if (TYPE1SC.socketRecv(recvBuffer, sizeof(recvBuffer), &recvSize) == 0)
-    //         {
-    //             DebugSerial.print("[RecvSize] >> ");
-    //             DebugSerial.println(recvSize);
-    //             DebugSerial.print("[Recv] >> ");
-    //             DebugSerial.println(recvBuffer);
-    // #if defined(USE_LCD)
-    //             u8x8log.print("[RecvSize] >> ");
-    //             u8x8log.print(recvSize);
-    //             u8x8log.print("\n");
-    //             u8x8log.print("[Recv] >> ");
-    //             u8x8log.print(recvBuffer);
-    //             u8x8log.print("\n");
-    // #endif
-    //         }
-    //         else
-    //         {
-    //             DebugSerial.println("Recv Fail!!!");
-    // #if defined(USE_LCD)
-    //             u8x8log.print("Recv Fail!!!\n");
-    // #endif
-    //         }
-    //     }
-
-    //     // 온도 경고 알림
-    //     else if (t < LowerLimitTemp)
-    //     {
-    //         String data = "GET /external/api/logEvent";
-    //         data += "?token=" BLYNK_AUTH_TOKEN;
-    //         data += "&code=CODE_LowTempAlert";
-    //         data += "&description=TEMP_WARNING:COLD"; // 앱에서 한글 미지원
-
-    //         data += " HTTP/1.1\r\n";
-    //         data += "Host: sgp1.blynk.cloud\r\n";
-    //         data += "Connection: keep-alive\r\n\r\n";
-
-    //         // String data = "https//sgp1.blynk.cloud/external/api/batch/update?token=" BLYNK_AUTH_TOKEN;
-    //         // data += "v0=" + String(t) + "&" + "v1=" + String(h) + "&" + "v2=" + String(ec);
-
-    //         if (TYPE1SC.socketSend(data.c_str()) == 0)
-    //         {
-    //             DebugSerial.print("[HTTP Send] >> ");
-    //             DebugSerial.println(data);
-    // #if defined(USE_LCD)
-    //             u8x8log.print("[HTTP Send] >> ");
-    //             u8x8log.print(data);
-    //             u8x8log.print("\n");
-    // #endif
-    //         }
-    //         else
-    //         {
-    //             DebugSerial.println("Send Fail!!!");
-    // #if defined(USE_LCD)
-    //             u8x8log.print("Send Fail!!!\n");
-    // #endif
-    //         }
-
-    //         /* 4-2 :TCP Socket Recv Data */
-    //         if (TYPE1SC.socketRecv(recvBuffer, sizeof(recvBuffer), &recvSize) == 0)
-    //         {
-    //             DebugSerial.print("[RecvSize] >> ");
-    //             DebugSerial.println(recvSize);
-    //             DebugSerial.print("[Recv] >> ");
-    //             DebugSerial.println(recvBuffer);
-    // #if defined(USE_LCD)
-    //             u8x8log.print("[RecvSize] >> ");
-    //             u8x8log.print(recvSize);
-    //             u8x8log.print("\n");
-    //             u8x8log.print("[Recv] >> ");
-    //             u8x8log.print(recvBuffer);
-    //             u8x8log.print("\n");
-    // #endif
-    //         }
-    //         else
-    //         {
-    //             DebugSerial.println("Recv Fail!!!");
-    // #if defined(USE_LCD)
-    //             u8x8log.print("Recv Fail!!!\n");
-    // #endif
-    //         }
-    //     }
 
     /* 5 :TCP Socket DeActivation */
     if (TYPE1SC.socketDeActivate() == 0)
@@ -767,6 +655,7 @@ void writeFile(fs::FS &fs, const char *path, const char *message)
 //     }
 // }
 
+#if defined(USE_WIFI)
 void reconnectWifi()
 {
     // WiFi 연결 상태 확인
@@ -858,6 +747,7 @@ void reconnectWifi()
         blynkRetryCount = 0; // Blynk가 연결되어 있으면 재시도 횟수 초기화
     }
 }
+#endif
 
 void setup()
 {
