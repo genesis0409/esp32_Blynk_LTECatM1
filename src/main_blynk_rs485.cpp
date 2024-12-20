@@ -230,8 +230,20 @@ void getSensorData()
 
     if (modbus_result == modbus.ku8MBSuccess)
     {
-        t = float(modbus.getResponseBuffer(0) / 10.00F);
-        h = float(modbus.getResponseBuffer(1) / 10.00F);
+        uint16_t rawTemp = modbus.getResponseBuffer(0); // 원본 데이터
+        uint16_t rawHumi = modbus.getResponseBuffer(1); // 원본 데이터
+
+        // 음수 변환 처리
+        if (rawTemp >= 0x8000)
+        {
+            t = float((rawTemp - 0xFFFF - 0x01) / 10.0F); // 계산식
+        }
+        else
+        {
+            t = float(rawTemp / 10.0F);
+        }
+
+        h = float(rawHumi / 10.0F);
 
         DebugSerial.printf("TZ-THT02 [messageID]: %d | [TEMP]: %.1f, [HUMI]: %.1f\n", messageID, t, h);
 
@@ -257,9 +269,23 @@ void getSensorData()
 
     if (modbus_result == modbus.ku8MBSuccess)
     {
-        t = float(modbus.getResponseBuffer(0) / 10.00F);
-        h = float(modbus.getResponseBuffer(1) / 10.00F);
-        ec = float(modbus.getResponseBuffer(2) / 1000.00F);
+
+        uint16_t rawSoilTemp = modbus.getResponseBuffer(0); // 원본 데이터
+        uint16_t rawSoilHumi = modbus.getResponseBuffer(1); // 원본 데이터
+        uint16_t rawEC = modbus.getResponseBuffer(2);       // 원본 데이터
+
+        // 음수 변환 처리
+        if (rawSoilTemp >= 0x8000)
+        {
+            t = float((rawSoilTemp - 0xFFFF - 0x01) / 10.0F); // 계산식
+        }
+        else
+        {
+            t = float(rawSoilTemp / 10.0F);
+        }
+
+        h = float(rawSoilHumi / 10.0F);
+        ec = float(rawEC / 1000.0F);
 
         DebugSerial.printf("RK520-02 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [EC]: %.3f\n", messageID, t, h, ec);
 
@@ -287,8 +313,20 @@ void getSensorData()
 
     if (modbus_result == modbus.ku8MBSuccess)
     {
-        t = float(modbus.getResponseBuffer(0) / 10.00F);
-        h = float(modbus.getResponseBuffer(1) / 10.00F);
+        uint16_t rawTemp = modbus.getResponseBuffer(0); // 원본 데이터
+        uint16_t rawHumi = modbus.getResponseBuffer(1); // 원본 데이터
+
+        // 음수 변환 처리
+        if (rawTemp >= 0x8000)
+        {
+            t = float((rawTemp - 0xFFFF - 0x01) / 10.0F); // 계산식
+        }
+        else
+        {
+            t = float(rawTemp / 10.0F);
+        }
+
+        h = float(rawHumi / 10.0F);
         errBit = modbus.getResponseBuffer(2);
 
         DebugSerial.printf("CNT-TM100 [messageID]: %d | [TEMP]: %.1f, [Moisture]: %.1f, [ErrBit]: %d\n", messageID, t, h, errBit);
@@ -323,8 +361,20 @@ void getSensorData()
     if (modbus_result == modbus.ku8MBSuccess)
     {
         // 감우센서 온습도
-        t = float(modbus.getResponseBuffer(0) / 10.00F);
-        h = float(modbus.getResponseBuffer(1)); // 정수
+        uint16_t rawTemp = modbus.getResponseBuffer(0); // 원본 데이터
+        uint16_t rawHumi = modbus.getResponseBuffer(1); // 원본 데이터
+
+        // 음수 변환 처리
+        if (rawTemp >= 0x8000)
+        {
+            t = float((rawTemp - 0xFFFF - 0x01) / 10.0F); // 계산식
+        }
+        else
+        {
+            t = float(rawTemp / 10.0F);
+        }
+
+        h = float(rawHumi / 10.0F);
 
         int rainDetectBit = modbus.getResponseBuffer(2);
         // 각 판의 비 감지 상태
